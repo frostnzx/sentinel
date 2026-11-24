@@ -44,8 +44,9 @@ const (
 
 // Defines values for ReadingSource.
 const (
-	Gateway ReadingSource = "gateway"
-	Node    ReadingSource = "node"
+	Combined ReadingSource = "combined"
+	Gateway  ReadingSource = "gateway"
+	Node     ReadingSource = "node"
 )
 
 // Command defines model for Command.
@@ -126,11 +127,14 @@ type Reading struct {
 	LockState  *string            `json:"lock_state"`
 	Motion     *bool              `json:"motion"`
 
-	// Payload Original MQTT JSON payload, including raw sensor metadata.
+	// Payload Original MQTT JSON payload on legacy per-message rows.
 	Payload    *map[string]interface{} `json:"payload,omitempty"`
 	Presence   *bool                   `json:"presence"`
 	ReceivedAt time.Time               `json:"received_at"`
 	RecordedAt time.Time               `json:"recorded_at"`
+
+	// Samples Per-sensor provenance for combined five-second snapshots. Values are in the top-level sensor fields; absent or stale sensors have no entry.
+	Samples *map[string]SnapshotSample `json:"samples,omitempty"`
 
 	// Sensor Absent on readings stored before sensor topics were adopted.
 	Sensor       *ReadingSensor `json:"sensor,omitempty"`
@@ -148,6 +152,20 @@ type ReadingSensor string
 
 // ReadingSource defines model for Reading.Source.
 type ReadingSource string
+
+// SnapshotSample defines model for SnapshotSample.
+type SnapshotSample struct {
+	BootId     string             `json:"boot_id"`
+	DeviceId   string             `json:"device_id"`
+	Error      *string            `json:"error,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+	ReceivedAt time.Time          `json:"received_at"`
+	RecordedAt time.Time          `json:"recorded_at"`
+	Seq        int64              `json:"seq"`
+	Simulated  bool               `json:"simulated"`
+	UptimeMs   *int64             `json:"uptime_ms,omitempty"`
+	Valid      bool               `json:"valid"`
+}
 
 // GetDoorReadingsParams defines parameters for GetDoorReadings.
 type GetDoorReadingsParams struct {

@@ -1,6 +1,6 @@
 # Smart Door
 
-The Go API connects to the public MQTT broker and stores incoming readings and events in PostgreSQL/TimescaleDB. The Next.js dashboard calls the Go HTTP API; the browser does not connect to MQTT. Pi and ESP32 MQTT clients are owned by their teammates.
+The Go API connects to the public MQTT broker and stores combined five-second sensor snapshots and events in PostgreSQL/TimescaleDB. The Next.js dashboard calls the Go HTTP API; the browser does not connect to MQTT. Pi and ESP32 MQTT clients are owned by their teammates.
 
 ## Public broker mode
 

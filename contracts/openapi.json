@@ -244,7 +244,8 @@
             "type": "string",
             "enum": [
               "node",
-              "gateway"
+              "gateway",
+              "combined"
             ]
           },
           "sensor": {
@@ -262,7 +263,14 @@
           "payload": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Original MQTT JSON payload, including raw sensor metadata."
+            "description": "Original MQTT JSON payload on legacy per-message rows."
+          },
+          "samples": {
+            "type": "object",
+            "description": "Per-sensor provenance for combined five-second snapshots. Values are in the top-level sensor fields; absent or stale sensors have no entry.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SnapshotSample"
+            }
           },
           "door_open": {
             "type": "boolean",
@@ -304,6 +312,22 @@
             "type": "string",
             "format": "date-time"
           }
+        }
+      },
+      "SnapshotSample": {
+        "type": "object",
+        "required": ["id", "device_id", "boot_id", "seq", "simulated", "valid", "recorded_at", "received_at"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "device_id": { "type": "string" },
+          "boot_id": { "type": "string" },
+          "seq": { "type": "integer", "format": "int64" },
+          "uptime_ms": { "type": "integer", "format": "int64" },
+          "simulated": { "type": "boolean" },
+          "valid": { "type": "boolean" },
+          "error": { "type": "string" },
+          "recorded_at": { "type": "string", "format": "date-time" },
+          "received_at": { "type": "string", "format": "date-time" }
         }
       },
       "DoorState": {

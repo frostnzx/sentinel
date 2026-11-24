@@ -22,27 +22,28 @@ import (
 )
 
 type StoredReading struct {
-	ID           string          `json:"id"`
-	Source       string          `json:"source"`
-	Sensor       string          `json:"sensor,omitempty"`
-	DeviceID     string          `json:"device_id,omitempty"`
-	BootID       string          `json:"boot_id,omitempty"`
-	Seq          *int64          `json:"seq,omitempty"`
-	UptimeMS     *int64          `json:"uptime_ms,omitempty"`
-	Simulated    *bool           `json:"simulated,omitempty"`
-	Valid        *bool           `json:"valid,omitempty"`
-	SensorError  *string         `json:"error,omitempty"`
-	Payload      json.RawMessage `json:"payload,omitempty"`
-	DoorOpen     *bool           `json:"door_open"`
-	LockState    *string         `json:"lock_state"`
-	Presence     *bool           `json:"presence"`
-	Motion       *bool           `json:"motion"`
-	Vibration    *bool           `json:"vibration"`
-	TemperatureC *float64        `json:"temperature_c"`
-	DistanceMM   *float64        `json:"distance_mm"`
-	LightLux     *float64        `json:"light_lux"`
-	RecordedAt   time.Time       `json:"recorded_at"`
-	ReceivedAt   time.Time       `json:"received_at"`
+	ID           string                          `json:"id"`
+	Source       string                          `json:"source"`
+	Sensor       string                          `json:"sensor,omitempty"`
+	DeviceID     string                          `json:"device_id,omitempty"`
+	BootID       string                          `json:"boot_id,omitempty"`
+	Seq          *int64                          `json:"seq,omitempty"`
+	UptimeMS     *int64                          `json:"uptime_ms,omitempty"`
+	Simulated    *bool                           `json:"simulated,omitempty"`
+	Valid        *bool                           `json:"valid,omitempty"`
+	SensorError  *string                         `json:"error,omitempty"`
+	Payload      json.RawMessage                 `json:"payload,omitempty"`
+	Samples      map[string]SensorSnapshotSample `json:"samples,omitempty"`
+	DoorOpen     *bool                           `json:"door_open"`
+	LockState    *string                         `json:"lock_state"`
+	Presence     *bool                           `json:"presence"`
+	Motion       *bool                           `json:"motion"`
+	Vibration    *bool                           `json:"vibration"`
+	TemperatureC *float64                        `json:"temperature_c"`
+	DistanceMM   *float64                        `json:"distance_mm"`
+	LightLux     *float64                        `json:"light_lux"`
+	RecordedAt   time.Time                       `json:"recorded_at"`
+	ReceivedAt   time.Time                       `json:"received_at"`
 }
 type DoorCommand struct {
 	ID        string    `json:"id"`
@@ -53,12 +54,11 @@ type DoorCommand struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type App struct {
-	db       *pgxpool.Pool
-	mqtt     mqtt.Client
-	prefix   string
-	mu       sync.RWMutex
-	ingestMu sync.Mutex
-	latest   map[string]StoredReading
+	db     *pgxpool.Pool
+	mqtt   mqtt.Client
+	prefix string
+	mu     sync.RWMutex
+	latest map[string]StoredReading
 }
 
 func main() {
@@ -76,6 +76,10 @@ func main() {
 		log.Fatal("set a unique MQTT_TOPIC_PREFIX")
 	}
 	a := &App{db: pool, prefix: prefix, latest: map[string]StoredReading{}}
+	if err := a.restoreLatest(ctx); err != nil {
+		log.Fatal(err)
+	}
+	go a.logSnapshots(ctx)
 	a.connectMQTT()
 	r := chi.NewRouter()
 	r.Get("/health/live", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -174,23 +178,6 @@ func (a *App) handleMQTT(_ mqtt.Client, m mqtt.Message) {
 		log.Printf("invalid sensor reading on %s: %v", m.Topic(), err)
 		return
 	}
-	// The ESP32 has no wall clock. Its sequence identity prevents a replay from
-	// getting a new server-derived recorded_at and becoming a second row.
-	a.ingestMu.Lock()
-	defer a.ingestMu.Unlock()
-	var seen bool
-	if err := a.db.QueryRow(context.Background(), `SELECT EXISTS(SELECT 1 FROM readings WHERE id=$1)`, reading.ID).Scan(&seen); err != nil {
-		log.Printf("check reading: %v", err)
-		return
-	}
-	if seen {
-		return
-	}
-	_, err = a.db.Exec(context.Background(), `INSERT INTO readings(id,source,door_open,lock_state,presence,temperature_c,distance_mm,light_lux,recorded_at,received_at,sensor,device_id,boot_id,seq,uptime_ms,simulated,valid,motion,vibration,sensor_error,payload) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) ON CONFLICT DO NOTHING`, reading.ID, reading.Source, reading.DoorOpen, reading.LockState, reading.Presence, reading.TemperatureC, reading.DistanceMM, reading.LightLux, reading.RecordedAt, reading.ReceivedAt, reading.Sensor, reading.DeviceID, reading.BootID, reading.Seq, reading.UptimeMS, reading.Simulated, reading.Valid, reading.Motion, reading.Vibration, reading.SensorError, reading.Payload)
-	if err != nil {
-		log.Printf("store reading: %v", err)
-		return
-	}
 	a.updateLatest(reading)
 }
 func (a *App) updateLatest(reading StoredReading) {
@@ -201,6 +188,7 @@ func (a *App) updateLatest(reading StoredReading) {
 		a.latest[reading.Sensor] = reading
 	}
 }
+
 // nodeOnlineLocked reads latest while the caller holds a.mu.
 func (a *App) nodeOnlineLocked() bool {
 	for _, reading := range a.latest {
@@ -233,7 +221,7 @@ func (a *App) readings(w http.ResponseWriter, r *http.Request) {
 		limit = 500
 	}
 	from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
-	rows, err := a.db.Query(r.Context(), `SELECT id::text,source,door_open,lock_state,presence,temperature_c,distance_mm,light_lux,recorded_at,received_at,COALESCE(sensor,''),COALESCE(device_id,''),COALESCE(boot_id,''),seq,uptime_ms,simulated,valid,motion,vibration,sensor_error,payload FROM readings WHERE ($1='' OR recorded_at >= $1::timestamptz) AND ($2='' OR recorded_at <= $2::timestamptz) ORDER BY recorded_at DESC LIMIT $3`, from, to, limit)
+	rows, err := a.db.Query(r.Context(), `SELECT id::text,source,door_open,lock_state,presence,temperature_c,distance_mm,light_lux,recorded_at,received_at,COALESCE(sensor,''),COALESCE(device_id,''),COALESCE(boot_id,''),seq,uptime_ms,simulated,valid,motion,vibration,sensor_error,payload,samples FROM readings WHERE ($1='' OR recorded_at >= $1::timestamptz) AND ($2='' OR recorded_at <= $2::timestamptz) ORDER BY recorded_at DESC LIMIT $3`, from, to, limit)
 	if err != nil {
 		writeError(w, 500, "could not read history")
 		return
@@ -242,11 +230,22 @@ func (a *App) readings(w http.ResponseWriter, r *http.Request) {
 	result := []StoredReading{}
 	for rows.Next() {
 		var x StoredReading
-		if err = rows.Scan(&x.ID, &x.Source, &x.DoorOpen, &x.LockState, &x.Presence, &x.TemperatureC, &x.DistanceMM, &x.LightLux, &x.RecordedAt, &x.ReceivedAt, &x.Sensor, &x.DeviceID, &x.BootID, &x.Seq, &x.UptimeMS, &x.Simulated, &x.Valid, &x.Motion, &x.Vibration, &x.SensorError, &x.Payload); err != nil {
+		var samples []byte
+		if err = rows.Scan(&x.ID, &x.Source, &x.DoorOpen, &x.LockState, &x.Presence, &x.TemperatureC, &x.DistanceMM, &x.LightLux, &x.RecordedAt, &x.ReceivedAt, &x.Sensor, &x.DeviceID, &x.BootID, &x.Seq, &x.UptimeMS, &x.Simulated, &x.Valid, &x.Motion, &x.Vibration, &x.SensorError, &x.Payload, &samples); err != nil {
 			writeError(w, 500, "could not read history")
 			return
 		}
+		if len(samples) > 0 && json.Unmarshal(samples, &x.Samples) != nil {
+			writeError(w, 500, "could not read history")
+			return
+		}
+		x.RecordedAt = x.RecordedAt.UTC()
+		x.ReceivedAt = x.ReceivedAt.UTC()
 		result = append(result, x)
+	}
+	if rows.Err() != nil {
+		writeError(w, 500, "could not read history")
+		return
 	}
 	jsonResponse(w, http.StatusOK, result)
 }

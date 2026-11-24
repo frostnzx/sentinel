@@ -181,7 +181,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            source: "node" | "gateway";
+            source: "node" | "gateway" | "combined";
             /**
              * @description Absent on readings stored before sensor topics were adopted.
              * @enum {string}
@@ -196,9 +196,13 @@ export interface components {
             simulated?: boolean;
             valid?: boolean;
             error?: string;
-            /** @description Original MQTT JSON payload, including raw sensor metadata. */
+            /** @description Original MQTT JSON payload on legacy per-message rows. */
             payload?: {
                 [key: string]: unknown;
+            };
+            /** @description Per-sensor provenance for combined five-second snapshots. Values are in the top-level sensor fields; absent or stale sensors have no entry. */
+            samples?: {
+                [key: string]: components["schemas"]["SnapshotSample"];
             };
             door_open?: boolean | null;
             lock_state?: string | null;
@@ -208,6 +212,23 @@ export interface components {
             temperature_c?: number | null;
             distance_mm?: number | null;
             light_lux?: number | null;
+            /** Format: date-time */
+            recorded_at: string;
+            /** Format: date-time */
+            received_at: string;
+        };
+        SnapshotSample: {
+            /** Format: uuid */
+            id: string;
+            device_id: string;
+            boot_id: string;
+            /** Format: int64 */
+            seq: number;
+            /** Format: int64 */
+            uptime_ms?: number;
+            simulated: boolean;
+            valid: boolean;
+            error?: string;
             /** Format: date-time */
             recorded_at: string;
             /** Format: date-time */

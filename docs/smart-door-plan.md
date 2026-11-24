@@ -134,7 +134,7 @@ Use unique MQTT client IDs. Commands and events carry IDs for duplicate handling
 
 ### Continuous readings and history
 
-- Store ESP32 and Pi readings separately; combine their latest values for the overview.
+- Combine the latest ESP32 and Pi sensor values into one readings-history snapshot every five seconds. Keep individual latest values for the overview. Existing per-message history remains until retention removes it.
 - Gateway telemetry defaults to every five seconds; node telemetry/heartbeat defaults to every ten seconds.
 - Record state changes and alerts immediately.
 - Use UTC timestamps and distinguish device-recorded time from server-received time.
