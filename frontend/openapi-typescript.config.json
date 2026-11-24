@@ -1,0 +1,1 @@
+{"input":"../contracts/openapi.json","output":"lib/api-schema.d.ts","immutableTypes":true}

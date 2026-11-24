@@ -2,15 +2,15 @@
 
 ## Project Structure & Architecture
 
-The repository currently contains `smart-door-plan.md`, the source of truth for the proposed smart-door system, its integration contracts, and implementation phases. Application code, tests, assets, and deployment configuration have not been added yet. Update this guide as those directories and tools are introduced.
+`smart-door-plan.md` remains the source of truth for product scope and implementation phases. The local MVP now lives in `backend/` (Go API, MQTT simulator, and TimescaleDB migration), `frontend/` (Next.js dashboard), `contracts/` (shared OpenAPI JSON), `infra/` (local Mosquitto configuration), and the root `docker-compose.yml`.
 
 The plan calls for a Next.js/TypeScript dashboard, a Go/Chi API, PostgreSQL with TimescaleDB, and a teammate-owned Python AI service. A Raspberry Pi and ESP32 handle local recognition and door control; the cloud side communicates through MQTT and HTTP. Keep automatic unlocking operational independently of cloud services.
 
 ## Development, Build & Testing
 
-No build, run, lint, or test commands are configured in this repository yet. Introduce and document reproducible commands alongside the first implementation, including dependency setup, database migrations, local services, and the simulator. Do not present proposed commands as already working.
+Run the local simulator stack with `docker compose up --build`; the API applies its migration on startup. Build the Go services with `cd backend && go build ./cmd/api ./cmd/simulator`; build the dashboard with `cd frontend && npm ci && npm run build`. Run `make generate` after changing `contracts/openapi.json` to refresh Go and TypeScript bindings. The Compose stack includes local Postgres/TimescaleDB, Mosquitto, API, simulator, and dashboard. No test suite or linter is configured yet; do not claim those checks ran.
 
-Follow the plan’s sequence: define OpenAPI and MQTT contracts, establish the local foundation, then implement simulation and backend flows before hardware integration and deployment. The first milestone is a simulated reading displayed in the dashboard and a manual command with a simulated acknowledgment.
+Follow the plan’s sequence: define OpenAPI and MQTT contracts, establish the local foundation, then implement simulation and backend flows before hardware integration and deployment. The current milestone is a simulated reading displayed in the dashboard and a manual command with a simulated acknowledgment. Enrollment, snapshots, event analysis, the remaining dashboard pages, hardware integration, and GCP deployment are still pending.
 
 ## Coding & Contracts
 
