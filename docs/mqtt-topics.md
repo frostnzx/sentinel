@@ -1,6 +1,6 @@
 # MQTT topics and payloads
 
-The API and simulator use `{MQTT_TOPIC_PREFIX}/` before every topic. Configure Mosquitto bridge directions explicitly when connecting a Pi. The simulator below is local-only.
+The Pi, ESP32, and API use the same unique `{MQTT_TOPIC_PREFIX}/` on `test.mosquitto.org`. The browser uses HTTP. Local Mosquitto and the simulator run only with the `sim` Compose profile.
 
 | Local topic | Direction | Retained | Purpose |
 |---|---|---:|---|
@@ -10,10 +10,12 @@ The API and simulator use `{MQTT_TOPIC_PREFIX}/` before every topic. Configure M
 | `door/access/event` | Edge → cloud | No | Recognition outcome and metrics |
 | `door/cmd/result` | Edge → cloud | No | Manual command acknowledgment |
 | `door/faces/status` | Edge → cloud | No | Applied face-list version |
-| `door/cmd/lock` | Cloud → edge | **No** | Expiring manual action command |
+| `door/cmd/lock` | API/Pi → ESP32 | **No** | Expiring manual or automatic action command |
 | `door/faces/sync` | Cloud → edge | Yes | Complete face-cache snapshot |
 
 Telemetry includes a stable message ID and UTC `recorded_at`; the server adds `received_at`. Commands include a UUID, action, and UTC expiry. Devices must reject expired or previously executed IDs. Action commands are never retained.
+
+The Pi sends `origin: "auto"` on automatic unlock; the API sends `origin: "manual"` on manual commands. Both use the same result topic. Face sync is a complete retained JSON object with `version`, `model_version`, and `people`; each person has an ID, name, and 2–5 embeddings of 128 numbers. An empty `people` list clears the cache. The Pi acknowledges with `{"version":1,"status":"applied"}` or `{"version":1,"status":"error","error":"reason"}`.
 
 Example node state:
 

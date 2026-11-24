@@ -141,6 +141,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/devices/door-01/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getDoorEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/faces/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFaceSync"];
+        put?: never;
+        post: operations["publishFaceSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -166,6 +198,8 @@ export interface components {
             door_id: "door-01";
             online: boolean;
             readings: components["schemas"]["Reading"][];
+            /** @description Whether the API is connected to the MQTT broker. */
+            mqtt_connected: boolean;
         };
         CommandRequest: {
             /** @enum {string} */
@@ -183,6 +217,37 @@ export interface components {
             created_at: string;
             /** Format: date-time */
             expires_at: string;
+        };
+        DoorEvent: {
+            /** Format: uuid */
+            id: string;
+            source: string;
+            kind: string;
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Format: date-time */
+            recorded_at: string;
+            /** Format: date-time */
+            received_at: string;
+        };
+        FacePerson: {
+            id: string;
+            name: string;
+            embeddings: number[][];
+        };
+        FaceSyncRequest: {
+            model_version: string;
+            people: components["schemas"]["FacePerson"][];
+        };
+        FaceSyncState: {
+            /** Format: int64 */
+            version: number;
+            /** Format: int64 */
+            applied_version?: number | null;
+            model_version?: string;
+            people: components["schemas"]["FacePerson"][];
+            error?: string;
         };
     };
     responses: never;
@@ -297,6 +362,77 @@ export interface operations {
             };
             /** @description Command not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getDoorEvents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent access and alert events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DoorEvent"][];
+                };
+            };
+        };
+    };
+    getFaceSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current face-cache version and Pi acknowledgment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceSyncState"];
+                };
+            };
+        };
+    };
+    publishFaceSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceSyncRequest"];
+            };
+        };
+        responses: {
+            /** @description Complete snapshot stored for retained MQTT publish */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceSyncState"];
+                };
+            };
+            /** @description Invalid snapshot */
+            400: {
                 headers: {
                     [name: string]: unknown;
                 };

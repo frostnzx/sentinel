@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,12 +42,11 @@ type DoorCommand struct {
 	ExpiresAt time.Time `json:"expires_at"`
 }
 type App struct {
-	db       *pgxpool.Pool
-	mqtt     mqtt.Client
-	prefix   string
-	mu       sync.RWMutex
-	latest   map[string]StoredReading
-	lastSeen time.Time
+	db     *pgxpool.Pool
+	mqtt   mqtt.Client
+	prefix string
+	mu     sync.RWMutex
+	latest map[string]StoredReading
 }
 
 func main() {
@@ -59,7 +59,11 @@ func main() {
 	if err := migrate(ctx, pool); err != nil {
 		log.Fatal(err)
 	}
-	a := &App{db: pool, prefix: strings.Trim(env("MQTT_TOPIC_PREFIX", "school-demo"), "/"), latest: map[string]StoredReading{}}
+	prefix := strings.Trim(os.Getenv("MQTT_TOPIC_PREFIX"), "/")
+	if len(prefix) < 12 || prefix == "school-demo" || strings.Contains(prefix, "replace") || strings.ContainsAny(prefix, "+# ") {
+		log.Fatal("set a unique MQTT_TOPIC_PREFIX")
+	}
+	a := &App{db: pool, prefix: prefix, latest: map[string]StoredReading{}}
 	a.connectMQTT()
 	r := chi.NewRouter()
 	r.Get("/health/live", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -73,45 +77,64 @@ func main() {
 	r.Get("/api/v1/devices/door-01/readings", a.readings)
 	r.Post("/api/v1/devices/door-01/commands", a.createCommand)
 	r.Get("/api/v1/commands/{id}", a.getCommand)
+	r.Get("/api/v1/devices/door-01/events", a.events)
+	r.Get("/api/v1/faces/sync", a.faceStatus)
+	r.Post("/api/v1/faces/sync", a.syncFaces)
 	log.Printf("API listening on %s", env("API_ADDR", ":8080"))
 	log.Fatal(http.ListenAndServe(env("API_ADDR", ":8080"), cors(r)))
 }
 
 func migrate(ctx context.Context, db *pgxpool.Pool) error {
-	sql, err := os.ReadFile("migrations/001_init.sql")
+	files, err := filepath.Glob("migrations/*.sql")
 	if err != nil {
 		return err
 	}
-	for _, statement := range strings.Split(string(sql), ";") {
-		if strings.TrimSpace(statement) == "" {
-			continue
-		}
-		if _, err = db.Exec(ctx, statement); err != nil {
+	for _, file := range files {
+		sql, err := os.ReadFile(file)
+		if err != nil {
 			return err
+		}
+		for _, statement := range strings.Split(string(sql), ";") {
+			if strings.TrimSpace(statement) == "" {
+				continue
+			}
+			if _, err = db.Exec(ctx, statement); err != nil {
+				return fmt.Errorf("%s: %w", file, err)
+			}
 		}
 	}
 	return nil
 }
 func (a *App) connectMQTT() {
 	clientID := env("MQTT_CLIENT_ID", "smart-door-api-local")
-	opts := mqtt.NewClientOptions().AddBroker(env("MQTT_URL", "tcp://localhost:1883")).SetClientID(clientID).SetAutoReconnect(true).SetConnectRetry(true).SetConnectRetryInterval(2 * time.Second)
+	opts := mqtt.NewClientOptions().AddBroker(env("MQTT_URL", "ssl://test.mosquitto.org:8886")).SetClientID(clientID).SetAutoReconnect(true).SetConnectRetry(true).SetConnectRetryInterval(2 * time.Second)
+	opts.SetOnConnectHandler(func(c mqtt.Client) {
+		for _, topic := range []string{"door/node/state", "door/node/alert", "door/gateway/telemetry", "door/access/event", "door/cmd/result", "door/faces/status"} {
+			if token := c.Subscribe(a.topic(topic), 1, a.handleMQTT); token.Wait() && token.Error() != nil {
+				log.Printf("subscribe %s: %v", topic, token.Error())
+			}
+		}
+		a.publishFaceSnapshot()
+	})
 	a.mqtt = mqtt.NewClient(opts)
-	for {
+	go func() {
 		token := a.mqtt.Connect()
-		if token.Wait() && token.Error() == nil {
-			break
+		token.Wait()
+		if token.Error() != nil {
+			log.Printf("MQTT connect: %v", token.Error())
 		}
-		log.Printf("MQTT unavailable; retrying: %v", token.Error())
-		time.Sleep(2 * time.Second)
-	}
-	for _, topic := range []string{"door/node/state", "door/gateway/telemetry", "door/cmd/result"} {
-		if token := a.mqtt.Subscribe(a.topic(topic), 1, a.handleMQTT); token.Wait() && token.Error() != nil {
-			log.Printf("subscribe %s: %v", topic, token.Error())
-		}
-	}
+	}()
 }
 func (a *App) topic(s string) string { return a.prefix + "/" + s }
 func (a *App) handleMQTT(_ mqtt.Client, m mqtt.Message) {
+	if strings.HasSuffix(m.Topic(), "/faces/status") {
+		a.handleFaceStatus(m.Payload())
+		return
+	}
+	if strings.HasSuffix(m.Topic(), "/access/event") || strings.HasSuffix(m.Topic(), "/node/alert") {
+		a.handleEvent(m.Topic(), m.Payload())
+		return
+	}
 	if strings.HasSuffix(m.Topic(), "/cmd/result") {
 		var result struct {
 			ID      string `json:"id"`
@@ -135,6 +158,12 @@ func (a *App) handleMQTT(_ mqtt.Client, m mqtt.Message) {
 	if json.Unmarshal(m.Payload(), &reading) != nil || (reading.Source != "node" && reading.Source != "gateway") || reading.ID == "" {
 		return
 	}
+	if strings.HasSuffix(m.Topic(), "/node/state") && reading.Source != "node" {
+		return
+	}
+	if strings.HasSuffix(m.Topic(), "/gateway/telemetry") && reading.Source != "gateway" {
+		return
+	}
 	if reading.RecordedAt.IsZero() {
 		reading.RecordedAt = time.Now().UTC()
 	}
@@ -145,8 +174,9 @@ func (a *App) handleMQTT(_ mqtt.Client, m mqtt.Message) {
 		return
 	}
 	a.mu.Lock()
-	a.latest[reading.Source] = reading
-	a.lastSeen = reading.ReceivedAt
+	if previous, ok := a.latest[reading.Source]; !ok || reading.RecordedAt.After(previous.RecordedAt) {
+		a.latest[reading.Source] = reading
+	}
 	a.mu.Unlock()
 }
 func (a *App) ready(w http.ResponseWriter, r *http.Request) {
@@ -165,7 +195,7 @@ func (a *App) state(w http.ResponseWriter, _ *http.Request) {
 	node, hasNode := a.latest["node"]
 	online := hasNode && time.Since(node.ReceivedAt) < 30*time.Second
 	a.mu.RUnlock()
-	jsonResponse(w, http.StatusOK, map[string]any{"door_id": "door-01", "online": online, "readings": values})
+	jsonResponse(w, http.StatusOK, map[string]any{"door_id": "door-01", "online": online, "mqtt_connected": a.mqtt != nil && a.mqtt.IsConnected(), "readings": values})
 }
 func (a *App) readings(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -214,7 +244,7 @@ func (a *App) createCommand(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "could not store command")
 		return
 	}
-	payload, _ := json.Marshal(map[string]any{"id": id, "action": body.Action, "expires_at": c.ExpiresAt})
+	payload, _ := json.Marshal(map[string]any{"id": id, "action": body.Action, "origin": "manual", "expires_at": c.ExpiresAt})
 	t := a.mqtt.Publish(a.topic("door/cmd/lock"), 1, false, payload)
 	if !t.WaitTimeout(2*time.Second) || t.Error() != nil {
 		_, _ = a.db.Exec(r.Context(), `UPDATE commands SET status='failed',message='publish failed' WHERE id=$1 AND status='pending'`, id)

@@ -1,25 +1,21 @@
 # Smart Door
 
-Local development foundation for the smart-door project. The first milestone is a simulated reading shown in the dashboard and a manual command with a simulated acknowledgment.
+The Go API connects to the public MQTT broker and stores incoming readings and events in PostgreSQL/TimescaleDB. The Next.js dashboard calls the Go HTTP API; the browser does not connect to MQTT. Pi and ESP32 MQTT clients are owned by their teammates.
 
-## Local setup
+## Public broker mode
 
-Requirements: Docker Compose, Go 1.24+, and Node.js 20+.
+1. Copy `.env.example` to `.env` and replace `MQTT_TOPIC_PREFIX` with a unique value, for example `smartdoor-` plus the output of `openssl rand -hex 8`. Give the same prefix and broker URL to the Pi and ESP32 owners.
+2. Set `MQTT_URL=ssl://test.mosquitto.org:8886` in `.env` (already the example default). No broker account or web-console setup is required for this anonymous test broker.
+3. If the previous local stack is running, stop it with Ctrl+C and run `docker compose --profile sim down` so its simulator container is stopped. Then run `docker compose up --build`. Open the dashboard at http://localhost:3000 and Scalar API docs at http://localhost:8080/docs. The database persists in the Compose `db-data` volume. The local simulator is off in this mode.
 
-```sh
-# Optional: copy .env.example to .env to override defaults.
-docker compose up --build
-```
+The API subscribes to `<prefix>/door/node/state`, `door/node/alert`, `door/gateway/telemetry`, `door/access/event`, `door/cmd/result`, and `door/faces/status`. It publishes manual commands to `door/cmd/lock` without retention and complete retained face snapshots to `door/faces/sync`. It resubscribes after broker reconnects. [MQTT payload examples](docs/mqtt-topics.md) are the handoff contract for the device owners.
 
-Open the dashboard at http://localhost:3000 and the API documentation at http://localhost:8080/docs. The simulator publishes readings through Mosquitto every five seconds. API and MQTT settings are in `.env.example`.
+The existing dashboard displays node and gateway readings. Manual lock/unlock requests are stored before publishing and update when the ESP32 sends a result. The API also stores access events and exposes them at `GET /api/v1/devices/door-01/events`. `POST /api/v1/faces/sync` accepts a complete versioned list of embeddings and `GET /api/v1/faces/sync` shows the version acknowledged by the Pi. Enrollment photo processing and its dashboard page are later work.
 
-The public broker is intentionally unset until the team selects one. The local stack does not connect to a public broker or real hardware. It has no application authentication; keep it on a trusted network.
+## Local simulation
 
-## Implemented first slice
+For fake readings and a simulated command acknowledgment, run `MQTT_URL=tcp://mqtt:1883 docker compose --profile sim up --build`. This starts local Mosquitto and the simulator. Use plain `docker compose up --build` with the public `MQTT_URL` to return to real-device mode.
 
-- Shared OpenAPI contract and MQTT topic map.
-- Go/Chi API, TimescaleDB schema, local Mosquitto, and Docker Compose.
-- MQTT simulator and dashboard view for live state, readings, and manual lock/unlock acknowledgment.
-- Generation commands for Go and TypeScript types from the shared OpenAPI JSON (`make generate`).
+## Contracts and limitations
 
-The remaining plan phases are real enrollment and snapshot/AI flows, the four complete dashboard pages, hardware integration, and GCP/Terraform deployment. See [the full plan](docs/smart-door-plan.md).
+[OpenAPI](contracts/openapi.json) is the shared HTTP contract; run `make generate` after changing it. The public test broker permits others to publish and read raw topics, including lock commands and face embeddings. Its topic prefix avoids accidental collisions but does not control access. Public-broker automatic unlocking stops when the internet or broker is unavailable.

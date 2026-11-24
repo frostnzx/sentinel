@@ -1,5 +1,7 @@
 # Smart Door — Final Frontend, Backend, and Infrastructure Plan
 
+> **Integration update (2026-11-24):** The team selected `test.mosquitto.org` for a college demo. The Pi, ESP32, and Go API connect directly to that public broker with the same unique topic prefix; there is no Pi broker or bridge. This repository implements the Go API and dashboard connection only; teammates own the Pi and ESP32 clients. The simulator and local Mosquitto run only in the `sim` Compose profile. Automatic unlocking through MQTT requires internet access. The team chose raw messages, including face embeddings, on this anonymous broker. See `docs/mqtt-topics.md` and the root README for the current connection contract and setup. Sections below describing the Pi broker, bridge, and offline automatic unlock are superseded by this update.
+
 ## 1. Goal and agreed architecture
 
 Build a simple school-project dashboard that monitors the door, stores continuous sensor history, displays face-scan events, manages trusted faces, and sends manual lock/unlock commands.
@@ -12,9 +14,9 @@ Build a simple school-project dashboard that monitors the door, stores continuou
 | Backend | Go + Chi |
 | Database | PostgreSQL + TimescaleDB |
 | API documentation | OpenAPI + Scalar |
-| Local MQTT broker | Mosquitto on the Raspberry Pi |
-| Cloud MQTT connection | Selected shared public broker |
-| Edge/cloud connection | Pi bridges selected MQTT topics to the public broker |
+| Local MQTT broker | None in real-device mode; local Mosquitto is simulation-only |
+| Cloud MQTT connection | `test.mosquitto.org` |
+| Edge/cloud connection | Pi and ESP32 connect directly to the public broker |
 | AI service | Teammate-built Python service |
 | Claude integration | Python AI service makes the calls |
 | Deployment | Docker Compose on one GCP Compute Engine VM |
@@ -24,13 +26,12 @@ Build a simple school-project dashboard that monitors the door, stores continuou
 flowchart LR
     subgraph Edge["At the door"]
         ESP[ESP32: sensors and actuators]
-        LOCAL[Mosquitto on Pi]
         PI[Pi: camera and recognition]
-        ESP <--> LOCAL
-        PI <--> LOCAL
     end
 
-    LOCAL <-->|Selected topics bridged| PUBLIC[Shared public MQTT broker]
+    PUBLIC[Shared public MQTT broker]
+    ESP <--> PUBLIC
+    PI <--> PUBLIC
 
     subgraph GCP["One GCP VM — later"]
         WEB[Next.js dashboard]
@@ -49,7 +50,7 @@ flowchart LR
     AI --> CLAUDE[Claude API]
 ```
 
-The Pi and ESP32 handle automatic unlocking locally. Internet, backend, and Claude availability do not sit in that decision path. Cloud features provide enrollment, synchronization, history, manual commands, and visitor descriptions.
+The Pi sends automatic unlock requests through the public broker to the ESP32. Internet and broker availability are required for that path. Cloud features provide enrollment, synchronization, history, manual commands, and visitor descriptions.
 
 ## 2. Responsibilities and integration contracts
 
@@ -60,7 +61,7 @@ Implement the frontend, Go backend, TimescaleDB schema, MQTT ingestion and publi
 ### Teammates’ part
 
 - **ESP32 owner:** sensor readings, debounce, solenoid/buzzer control, command results, auto-relock, and tamper behavior.
-- **Pi owner:** local broker and bridge, camera, local face recognition, cached embeddings, snapshot uploads, and offline operation.
+- **Pi owner:** public-broker MQTT client, camera, local face recognition, cached embeddings, and snapshot uploads.
 - **AI owner:** Python embedding and visitor-analysis endpoints, model compatibility, image-quality checks, and Claude requests.
 
 Thresholds, voting, anti-spoofing, and actuator timing belong to the edge/AI implementation. Your backend stores their reported results and metrics.
@@ -123,7 +124,7 @@ Public: <project-prefix>/door/access/event
 | `door/cmd/lock` | Cloud → edge | Manual lock/unlock request |
 | `door/faces/sync` | Cloud → edge | Retained, complete face-cache snapshot |
 
-Use explicit bridge directions to avoid loops. Pi-generated automatic unlock commands stay local; their outcomes are reported through events.
+The API, Pi, and ESP32 use the same public topic prefix. Pi-generated automatic unlock commands use `door/cmd/lock`; results are reported through `door/cmd/result`.
 
 Configure the public hostname, port, protocol, and project prefix through environment settings. The selected endpoint is still pending from the team; this does not change the architecture.
 
@@ -199,12 +200,12 @@ Store reported FPS, latency, similarity, spoof score, lighting, and distance for
 
 | Phase | Deliverable |
 |---|---|
-| **1. Contracts** | OpenAPI, MQTT examples, bridge topic map, and Python-service request/response examples |
+| **1. Contracts** | OpenAPI, MQTT examples and topic map, and Python-service request/response examples |
 | **2. Local foundation** | Compose services, database migrations, Go API, Scalar, and health checks |
 | **3. Simulation** | Simulated node/gateway plus mock embedding and triage responses |
 | **4. Backend flows** | Telemetry, history, acknowledged commands, enrollment sync, snapshots, and analysis |
 | **5. Frontend** | Four connected pages with useful pending, empty, stale, and failure states |
-| **6. Team integration** | Real Python service, Pi bridge, ESP32, and hardware acceptance |
+| **6. Team integration** | Real Python service, Pi MQTT client, ESP32, and hardware acceptance |
 | **7. GCP/IaC** | Reviewed Terraform, deployment configuration, backup/restore, and cloud verification |
 
 The first milestone is a simulated reading visible in the dashboard and a manual command with a simulated acknowledgment.
@@ -220,7 +221,7 @@ Required checks:
 - Deletion remains visibly pending while the Pi is disconnected.
 - Snapshot/event arrival order does not lose associations or duplicate analysis.
 - Claude timeout or malformed output does not interrupt event storage or local unlocking.
-- Disconnecting internet preserves local recognition and Pi-to-ESP32 control.
+- Disconnecting internet marks the MQTT devices offline; no queued command executes after reconnection.
 - Real hardware confirms auto-relock, tamper reporting, and three-failure buzzer behavior.
 
 Keep automatic checks focused on API behavior, persistence, MQTT handling, generated-contract consistency, and build success. Report simulator verification separately from real-hardware verification.
@@ -245,4 +246,4 @@ Keep cloud access scoped to the team’s demo network/IPs by default because the
 
 V1 supports one door and excludes live video, daily LLM summaries, natural-language database queries, custom model training, and cloud-driven alarm escalation. Those can be considered after the required demonstration works.
 
-The project is complete when the dashboard, Scalar API, continuous history, acknowledged commands, cloud enrollment with confirmed Pi synchronization, snapshots, visitor descriptions, and offline local unlocking work together, with a repeatable GCP deployment.
+The project is complete when the dashboard, Scalar API, continuous history, acknowledged commands, cloud enrollment with confirmed Pi synchronization, snapshots, visitor descriptions, and public-broker control work together, with a repeatable GCP deployment.

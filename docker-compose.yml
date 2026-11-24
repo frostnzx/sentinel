@@ -12,6 +12,7 @@ services:
       timeout: 3s
       retries: 20
   mqtt:
+    profiles: [sim]
     image: eclipse-mosquitto:2.0
     ports: ["1883:1883"]
     volumes: ["./infra/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro"]
@@ -27,22 +28,22 @@ services:
     command: ["api"]
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-smartdoor}:${POSTGRES_PASSWORD:-local-dev-only}@db:5432/${POSTGRES_DB:-smartdoor}?sslmode=disable
-      MQTT_URL: tcp://mqtt:1883
-      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-school-demo}
-      MQTT_CLIENT_ID: smart-door-api-local
+      MQTT_URL: ${MQTT_URL:-ssl://test.mosquitto.org:8886}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:?Set a unique MQTT_TOPIC_PREFIX in .env}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-smart-door-api}
       API_ADDR: :8080
     ports: ["8080:8080"]
     depends_on:
       db: { condition: service_healthy }
-      mqtt: { condition: service_healthy }
   simulator:
+    profiles: [sim]
     build:
       context: .
       dockerfile: backend/Dockerfile
     command: ["simulator"]
     environment:
       MQTT_URL: tcp://mqtt:1883
-      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:-school-demo}
+      MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:?Set a unique MQTT_TOPIC_PREFIX in .env}
       SIMULATOR_CLIENT_ID: smart-door-simulator-local
     depends_on:
       mqtt: { condition: service_healthy }

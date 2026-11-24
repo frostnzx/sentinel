@@ -2,15 +2,15 @@
 
 ## Project Structure & Architecture
 
-`smart-door-plan.md` remains the source of truth for product scope and implementation phases. The local MVP now lives in `backend/` (Go API, MQTT simulator, and TimescaleDB migration), `frontend/` (Next.js dashboard), `contracts/` (shared OpenAPI JSON), `infra/` (local Mosquitto configuration), and the root `docker-compose.yml`.
+`smart-door-plan.md` remains the source of truth for product scope and implementation phases, with the public-broker integration decision documented at its top. The application lives in `backend/` (Go API, MQTT simulator, and TimescaleDB migrations), `frontend/` (Next.js dashboard), `contracts/` (OpenAPI JSON), `infra/` (simulation Mosquitto configuration), and the root `docker-compose.yml`. Pi and ESP32 code is teammate-owned and is not in this repository.
 
 The plan calls for a Next.js/TypeScript dashboard, a Go/Chi API, PostgreSQL with TimescaleDB, and a teammate-owned Python AI service. A Raspberry Pi and ESP32 handle local recognition and door control; the cloud side communicates through MQTT and HTTP. Keep automatic unlocking operational independently of cloud services.
 
 ## Development, Build & Testing
 
-Run the local simulator stack with `docker compose up --build`; the API applies its migration on startup. Build the Go services with `cd backend && go build ./cmd/api ./cmd/simulator`; build the dashboard with `cd frontend && npm ci && npm run build`. Run `make generate` after changing `contracts/openapi.json` to refresh Go and TypeScript bindings. The Compose stack includes local Postgres/TimescaleDB, Mosquitto, API, simulator, and dashboard. No test suite or linter is configured yet; do not claim those checks ran.
+Run the real-device stack with `docker compose up --build` after setting a unique `MQTT_TOPIC_PREFIX` in `.env`. Run the local simulator stack with `MQTT_URL=tcp://mqtt:1883 docker compose --profile sim up --build`. The API applies migrations on startup. Build Go with `cd backend && go build ./cmd/api ./cmd/simulator`; build the dashboard with `cd frontend && npm ci && npm run build`. Run `make generate` after changing `contracts/openapi.json` to refresh Go and TypeScript bindings.
 
-Follow the plan’s sequence: define OpenAPI and MQTT contracts, establish the local foundation, then implement simulation and backend flows before hardware integration and deployment. The current milestone is a simulated reading displayed in the dashboard and a manual command with a simulated acknowledgment. Enrollment, snapshots, event analysis, the remaining dashboard pages, hardware integration, and GCP deployment are still pending.
+Follow the plan’s sequence: define contracts, establish the local foundation, then implement simulation and backend flows before hardware integration and deployment. The current MQTT milestone connects the API, Pi, and ESP32 directly to the public broker. Enrollment photo processing, snapshots, event analysis, the remaining dashboard pages, full hardware verification, and GCP deployment are still pending.
 
 ## Coding & Contracts
 

@@ -158,6 +158,71 @@
           }
         }
       }
+    },
+    "/devices/door-01/events": {
+      "get": {
+        "operationId": "getDoorEvents",
+        "responses": {
+          "200": {
+            "description": "Recent access and alert events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DoorEvent"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faces/sync": {
+      "get": {
+        "operationId": "getFaceSync",
+        "responses": {
+          "200": {
+            "description": "Current face-cache version and Pi acknowledgment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceSyncState"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "publishFaceSync",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FaceSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Complete snapshot stored for retained MQTT publish",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaceSyncState"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid snapshot"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -221,7 +286,8 @@
         "required": [
           "door_id",
           "online",
-          "readings"
+          "readings",
+          "mqtt_connected"
         ],
         "properties": {
           "door_id": {
@@ -236,6 +302,10 @@
             "items": {
               "$ref": "#/components/schemas/Reading"
             }
+          },
+          "mqtt_connected": {
+            "type": "boolean",
+            "description": "Whether the API is connected to the MQTT broker."
           }
         }
       },
@@ -295,6 +365,118 @@
           "expires_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "DoorEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "kind",
+          "payload",
+          "recorded_at",
+          "received_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "FacePerson": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "embeddings"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "embeddings": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 5,
+            "items": {
+              "type": "array",
+              "minItems": 128,
+              "maxItems": 128,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "FaceSyncRequest": {
+        "type": "object",
+        "required": [
+          "model_version",
+          "people"
+        ],
+        "properties": {
+          "model_version": {
+            "type": "string"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacePerson"
+            }
+          }
+        }
+      },
+      "FaceSyncState": {
+        "type": "object",
+        "required": [
+          "version",
+          "people"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "applied_version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "model_version": {
+            "type": "string"
+          },
+          "people": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacePerson"
+            }
+          },
+          "error": {
+            "type": "string"
           }
         }
       }

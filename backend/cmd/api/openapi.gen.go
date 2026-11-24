@@ -63,11 +63,46 @@ type CommandRequest struct {
 // CommandRequestAction defines model for CommandRequest.Action.
 type CommandRequestAction string
 
+// DoorEvent defines model for DoorEvent.
+type DoorEvent struct {
+	Id         openapi_types.UUID     `json:"id"`
+	Kind       string                 `json:"kind"`
+	Payload    map[string]interface{} `json:"payload"`
+	ReceivedAt time.Time              `json:"received_at"`
+	RecordedAt time.Time              `json:"recorded_at"`
+	Source     string                 `json:"source"`
+}
+
 // DoorState defines model for DoorState.
 type DoorState struct {
-	DoorId   string    `json:"door_id"`
-	Online   bool      `json:"online"`
-	Readings []Reading `json:"readings"`
+	DoorId string `json:"door_id"`
+
+	// MqttConnected Whether the API is connected to the MQTT broker.
+	MqttConnected bool      `json:"mqtt_connected"`
+	Online        bool      `json:"online"`
+	Readings      []Reading `json:"readings"`
+}
+
+// FacePerson defines model for FacePerson.
+type FacePerson struct {
+	Embeddings [][]float32 `json:"embeddings"`
+	Id         string      `json:"id"`
+	Name       string      `json:"name"`
+}
+
+// FaceSyncRequest defines model for FaceSyncRequest.
+type FaceSyncRequest struct {
+	ModelVersion string       `json:"model_version"`
+	People       []FacePerson `json:"people"`
+}
+
+// FaceSyncState defines model for FaceSyncState.
+type FaceSyncState struct {
+	AppliedVersion *int64       `json:"applied_version"`
+	Error          *string      `json:"error,omitempty"`
+	ModelVersion   *string      `json:"model_version,omitempty"`
+	People         []FacePerson `json:"people"`
+	Version        int64        `json:"version"`
 }
 
 // Reading defines model for Reading.
@@ -97,6 +132,9 @@ type GetDoorReadingsParams struct {
 // CreateDoorCommandJSONRequestBody defines body for CreateDoorCommand for application/json ContentType.
 type CreateDoorCommandJSONRequestBody = CommandRequest
 
+// PublishFaceSyncJSONRequestBody defines body for PublishFaceSync for application/json ContentType.
+type PublishFaceSyncJSONRequestBody = FaceSyncRequest
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
@@ -106,11 +144,20 @@ type ServerInterface interface {
 	// (POST /devices/door-01/commands)
 	CreateDoorCommand(w http.ResponseWriter, r *http.Request)
 
+	// (GET /devices/door-01/events)
+	GetDoorEvents(w http.ResponseWriter, r *http.Request)
+
 	// (GET /devices/door-01/readings)
 	GetDoorReadings(w http.ResponseWriter, r *http.Request, params GetDoorReadingsParams)
 
 	// (GET /devices/door-01/state)
 	GetDoorState(w http.ResponseWriter, r *http.Request)
+
+	// (GET /faces/sync)
+	GetFaceSync(w http.ResponseWriter, r *http.Request)
+
+	// (POST /faces/sync)
+	PublishFaceSync(w http.ResponseWriter, r *http.Request)
 
 	// (GET /health/live)
 	GetHealthLive(w http.ResponseWriter, r *http.Request)
@@ -133,6 +180,11 @@ func (_ Unimplemented) CreateDoorCommand(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /devices/door-01/events)
+func (_ Unimplemented) GetDoorEvents(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (GET /devices/door-01/readings)
 func (_ Unimplemented) GetDoorReadings(w http.ResponseWriter, r *http.Request, params GetDoorReadingsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -140,6 +192,16 @@ func (_ Unimplemented) GetDoorReadings(w http.ResponseWriter, r *http.Request, p
 
 // (GET /devices/door-01/state)
 func (_ Unimplemented) GetDoorState(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /faces/sync)
+func (_ Unimplemented) GetFaceSync(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /faces/sync)
+func (_ Unimplemented) PublishFaceSync(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -201,6 +263,20 @@ func (siw *ServerInterfaceWrapper) CreateDoorCommand(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// GetDoorEvents operation middleware
+func (siw *ServerInterfaceWrapper) GetDoorEvents(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDoorEvents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetDoorReadings operation middleware
 func (siw *ServerInterfaceWrapper) GetDoorReadings(w http.ResponseWriter, r *http.Request) {
 
@@ -249,6 +325,34 @@ func (siw *ServerInterfaceWrapper) GetDoorState(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetDoorState(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFaceSync operation middleware
+func (siw *ServerInterfaceWrapper) GetFaceSync(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFaceSync(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishFaceSync operation middleware
+func (siw *ServerInterfaceWrapper) PublishFaceSync(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishFaceSync(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -406,10 +510,19 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/devices/door-01/commands", wrapper.CreateDoorCommand)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/devices/door-01/events", wrapper.GetDoorEvents)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/devices/door-01/readings", wrapper.GetDoorReadings)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/devices/door-01/state", wrapper.GetDoorState)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/faces/sync", wrapper.GetFaceSync)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/faces/sync", wrapper.PublishFaceSync)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health/live", wrapper.GetHealthLive)
