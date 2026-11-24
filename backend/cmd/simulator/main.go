@@ -30,7 +30,6 @@ func main() {
 		log.Fatal(t.Error())
 	}
 	defer client.Disconnect(250)
-	locked := true
 	var stateMu sync.Mutex
 	executed := make(map[string][]byte)
 	if t := client.Subscribe(topic("door/cmd/lock"), 1, func(_ mqtt.Client, m mqtt.Message) {
@@ -52,11 +51,7 @@ func main() {
 		status, msg := "succeeded", cmd.Action+" command executed"
 		if time.Now().After(cmd.ExpiresAt) {
 			status, msg = "failed", "command expired"
-		} else if cmd.Action == "lock" {
-			locked = true
-		} else if cmd.Action == "unlock" {
-			locked = false
-		} else {
+		} else if cmd.Action != "lock" && cmd.Action != "unlock" {
 			status, msg = "failed", "invalid action"
 		}
 		body, _ := json.Marshal(map[string]string{"id": cmd.ID, "status": status, "message": msg, "recorded_at": time.Now().UTC().Format(time.RFC3339Nano)})
@@ -68,19 +63,28 @@ func main() {
 	}
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	started := time.Now()
+	espBoot, piBoot := uuid(), uuid()
+	var espSeq, piSeq int64
 	for {
 		now := time.Now().UTC()
-		doorOpen, presence := false, rand.IntN(4) == 0
-		stateMu.Lock()
-		lock := "locked"
-		if !locked {
-			lock = "unlocked"
+		motion, vibration := rand.IntN(4) == 0, rand.IntN(8) == 0
+		for _, sensor := range []struct {
+			name  string
+			value bool
+		}{{"motion", motion}, {"door", true}, {"vibration", vibration}} {
+			espSeq++
+			body := map[string]any{"device_id": "esp32-simulator", "boot_id": espBoot, "seq": espSeq, "uptime_ms": time.Since(started).Milliseconds(), "simulated": true, "value": sensor.value, "valid": true}
+			publish(client, topic("sensor/"+sensor.name), body)
 		}
-		stateMu.Unlock()
-		id1, id2 := uuid(), uuid()
-		temperature, dist, lux := 24+rand.Float64()*2, 400+rand.Float64()*300, 80+rand.Float64()*20
-		publish(client, topic("door/node/state"), map[string]any{"id": id1, "source": "node", "door_open": doorOpen, "lock_state": lock, "presence": presence, "temperature_c": temperature, "recorded_at": now})
-		publish(client, topic("door/gateway/telemetry"), map[string]any{"id": id2, "source": "gateway", "distance_mm": dist, "light_lux": lux, "recorded_at": now})
+		for _, sensor := range []struct {
+			name  string
+			value float64
+			unit  string
+		}{{"distance", 400 + rand.Float64()*300, "mm"}, {"light", 80 + rand.Float64()*20, "lux"}} {
+			piSeq++
+			publish(client, topic("sensor/"+sensor.name), map[string]any{"device_id": "pi5-simulator", "boot_id": piBoot, "seq": piSeq, "ts": now, "uptime_ms": time.Since(started).Milliseconds(), "simulated": true, "value": sensor.value, "valid": true, "unit": sensor.unit})
+		}
 		<-ticker.C
 	}
 }

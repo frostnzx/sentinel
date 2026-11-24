@@ -247,6 +247,23 @@
               "gateway"
             ]
           },
+          "sensor": {
+            "type": "string",
+            "enum": ["motion", "door", "distance", "light", "vibration"],
+            "description": "Absent on readings stored before sensor topics were adopted."
+          },
+          "device_id": { "type": "string" },
+          "boot_id": { "type": "string" },
+          "seq": { "type": "integer", "format": "int64" },
+          "uptime_ms": { "type": "integer", "format": "int64" },
+          "simulated": { "type": "boolean" },
+          "valid": { "type": "boolean" },
+          "error": { "type": "string" },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Original MQTT JSON payload, including raw sensor metadata."
+          },
           "door_open": {
             "type": "boolean",
             "nullable": true
@@ -256,6 +273,14 @@
             "nullable": true
           },
           "presence": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "motion": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "vibration": {
             "type": "boolean",
             "nullable": true
           },

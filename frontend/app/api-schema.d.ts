@@ -182,9 +182,29 @@ export interface components {
             id: string;
             /** @enum {string} */
             source: "node" | "gateway";
+            /**
+             * @description Absent on readings stored before sensor topics were adopted.
+             * @enum {string}
+             */
+            sensor?: "motion" | "door" | "distance" | "light" | "vibration";
+            device_id?: string;
+            boot_id?: string;
+            /** Format: int64 */
+            seq?: number;
+            /** Format: int64 */
+            uptime_ms?: number;
+            simulated?: boolean;
+            valid?: boolean;
+            error?: string;
+            /** @description Original MQTT JSON payload, including raw sensor metadata. */
+            payload?: {
+                [key: string]: unknown;
+            };
             door_open?: boolean | null;
             lock_state?: string | null;
             presence?: boolean | null;
+            motion?: boolean | null;
+            vibration?: boolean | null;
             temperature_c?: number | null;
             distance_mm?: number | null;
             light_lux?: number | null;

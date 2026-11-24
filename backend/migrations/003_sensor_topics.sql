@@ -1,0 +1,11 @@
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS sensor text;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS device_id text;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS boot_id text;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS seq bigint;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS uptime_ms bigint;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS simulated boolean;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS valid boolean;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS motion boolean;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS vibration boolean;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS sensor_error text;
+ALTER TABLE readings ADD COLUMN IF NOT EXISTS payload jsonb;

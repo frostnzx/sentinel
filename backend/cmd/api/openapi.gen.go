@@ -33,6 +33,15 @@ const (
 	CommandRequestActionUnlock CommandRequestAction = "unlock"
 )
 
+// Defines values for ReadingSensor.
+const (
+	Distance  ReadingSensor = "distance"
+	Door      ReadingSensor = "door"
+	Light     ReadingSensor = "light"
+	Motion    ReadingSensor = "motion"
+	Vibration ReadingSensor = "vibration"
+)
+
 // Defines values for ReadingSource.
 const (
 	Gateway ReadingSource = "gateway"
@@ -107,17 +116,35 @@ type FaceSyncState struct {
 
 // Reading defines model for Reading.
 type Reading struct {
-	DistanceMm   *float32           `json:"distance_mm"`
-	DoorOpen     *bool              `json:"door_open"`
-	Id           openapi_types.UUID `json:"id"`
-	LightLux     *float32           `json:"light_lux"`
-	LockState    *string            `json:"lock_state"`
-	Presence     *bool              `json:"presence"`
-	ReceivedAt   time.Time          `json:"received_at"`
-	RecordedAt   time.Time          `json:"recorded_at"`
-	Source       ReadingSource      `json:"source"`
-	TemperatureC *float32           `json:"temperature_c"`
+	BootId     *string            `json:"boot_id,omitempty"`
+	DeviceId   *string            `json:"device_id,omitempty"`
+	DistanceMm *float32           `json:"distance_mm"`
+	DoorOpen   *bool              `json:"door_open"`
+	Error      *string            `json:"error,omitempty"`
+	Id         openapi_types.UUID `json:"id"`
+	LightLux   *float32           `json:"light_lux"`
+	LockState  *string            `json:"lock_state"`
+	Motion     *bool              `json:"motion"`
+
+	// Payload Original MQTT JSON payload, including raw sensor metadata.
+	Payload    *map[string]interface{} `json:"payload,omitempty"`
+	Presence   *bool                   `json:"presence"`
+	ReceivedAt time.Time               `json:"received_at"`
+	RecordedAt time.Time               `json:"recorded_at"`
+
+	// Sensor Absent on readings stored before sensor topics were adopted.
+	Sensor       *ReadingSensor `json:"sensor,omitempty"`
+	Seq          *int64         `json:"seq,omitempty"`
+	Simulated    *bool          `json:"simulated,omitempty"`
+	Source       ReadingSource  `json:"source"`
+	TemperatureC *float32       `json:"temperature_c"`
+	UptimeMs     *int64         `json:"uptime_ms,omitempty"`
+	Valid        *bool          `json:"valid,omitempty"`
+	Vibration    *bool          `json:"vibration"`
 }
+
+// ReadingSensor Absent on readings stored before sensor topics were adopted.
+type ReadingSensor string
 
 // ReadingSource defines model for Reading.Source.
 type ReadingSource string

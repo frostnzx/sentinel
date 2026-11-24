@@ -2,6 +2,8 @@
 
 > **Integration update (2026-11-24):** The team selected `test.mosquitto.org` for a college demo. The Pi, ESP32, and Go API connect directly to that public broker with the same unique topic prefix; there is no Pi broker or bridge. This repository implements the Go API and dashboard connection only; teammates own the Pi and ESP32 clients. The simulator and local Mosquitto run only in the `sim` Compose profile. Automatic unlocking through MQTT requires internet access. The team chose raw messages, including face embeddings, on this anonymous broker. See `docs/mqtt-topics.md` and the root README for the current connection contract and setup. Sections below describing the Pi broker, bridge, and offline automatic unlock are superseded by this update.
 
+> **Telemetry update (2026-11-24):** Device readings now arrive on five `sensor/*` topics with per-sensor values, validity, and sequence metadata. The earlier bundled `door/node/state` and `door/gateway/telemetry` descriptions below are superseded by `docs/mqtt-topics.md`.
+
 ## 1. Goal and agreed architecture
 
 Build a simple school-project dashboard that monitors the door, stores continuous sensor history, displays face-scan events, manages trusted faces, and sends manual lock/unlock commands.

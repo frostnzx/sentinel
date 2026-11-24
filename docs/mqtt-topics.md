@@ -4,29 +4,35 @@ The Pi, ESP32, and API use the same unique `{MQTT_TOPIC_PREFIX}/` on `test.mosqu
 
 | Local topic | Direction | Retained | Purpose |
 |---|---|---:|---|
-| `door/node/state` | Edge → cloud | No | Node telemetry and heartbeat |
+| `sensor/motion` | ESP32 → cloud | No | Motion state |
+| `sensor/door` | ESP32 → cloud | No | Calibrated reed state |
+| `sensor/vibration` | ESP32 → cloud | No | Vibration state |
+| `sensor/distance` | Pi → cloud | No | Distance in millimetres |
+| `sensor/light` | Pi → cloud | No | Illuminance in lux |
 | `door/node/alert` | Edge → cloud | No | PIR, vibration, tamper |
-| `door/gateway/telemetry` | Edge → cloud | No | Gateway telemetry and heartbeat |
 | `door/access/event` | Edge → cloud | No | Recognition outcome and metrics |
 | `door/cmd/result` | Edge → cloud | No | Manual command acknowledgment |
 | `door/faces/status` | Edge → cloud | No | Applied face-list version |
 | `door/cmd/lock` | API/Pi → ESP32 | **No** | Expiring manual or automatic action command |
 | `door/faces/sync` | Cloud → edge | Yes | Complete face-cache snapshot |
 
-Telemetry includes a stable message ID and UTC `recorded_at`; the server adds `received_at`. Commands include a UUID, action, and UTC expiry. Devices must reject expired or previously executed IDs. Action commands are never retained.
+Sensor messages carry `device_id`, `boot_id`, `seq`, `simulated`, `valid`, and `value`. The ESP32 sends `uptime_ms` without a wall-clock timestamp, so the API uses receipt time for `recorded_at`. The Pi sends UTC `ts`, which becomes `recorded_at`; the API also stores `received_at`. A valid door `value: true` means closed, and `false` means open. While the reed sensor is uncalibrated, the door status uses `raw: 0` for closed and `raw: 1` for open and still exposes the calibration error. Other invalid readings remain unknown. The API stores the original payload in history and uses the device, boot, sequence, and sensor topic to identify repeats. Commands include a UUID, action, and UTC expiry. Devices must reject expired or previously executed IDs. Action commands are never retained.
 
 The Pi sends `origin: "auto"` on automatic unlock; the API sends `origin: "manual"` on manual commands. Both use the same result topic. Face sync is a complete retained JSON object with `version`, `model_version`, and `people`; each person has an ID, name, and 2–5 embeddings of 128 numbers. An empty `people` list clears the cache. The Pi acknowledges with `{"version":1,"status":"applied"}` or `{"version":1,"status":"error","error":"reason"}`.
 
-Example node state:
+Example ESP32 motion, invalid door, and vibration readings (in topic order):
 
 ```json
-{"id":"8ea2e51e-ef9b-4e6b-9682-b35722c2cf27","source":"node","door_open":false,"lock_state":"locked","presence":false,"temperature_c":24.2,"recorded_at":"2026-01-02T03:04:05Z"}
+{"device_id":"esp32-94C3C14EB580","boot_id":"DD088E1F","seq":507,"uptime_ms":169823,"simulated":false,"value":false,"valid":true,"raw":0}
+{"device_id":"esp32-94C3C14EB580","boot_id":"DD088E1F","seq":508,"uptime_ms":170820,"simulated":false,"value":null,"valid":false,"raw":1,"meaning":"door_open","error":"reed_not_calibrated"}
+{"device_id":"esp32-94C3C14EB580","boot_id":"DD088E1F","seq":509,"uptime_ms":170822,"simulated":false,"value":false,"valid":true,"pulses":0,"window_ms":1001}
 ```
 
-Example gateway telemetry:
+Example Pi distance and light readings:
 
 ```json
-{"id":"48600d65-7aae-42e2-83d3-d2fc540b1cbc","source":"gateway","distance_mm":620,"light_lux":88.5,"recorded_at":"2026-01-02T03:04:05Z"}
+{"device_id":"pi5-gateway","boot_id":"0c0cbfaa","seq":165,"ts":"2026-11-24T08:19:26.160+00:00","uptime_ms":82049,"simulated":false,"value":68.0,"valid":true,"unit":"mm"}
+{"device_id":"pi5-gateway","boot_id":"0c0cbfaa","seq":166,"ts":"2026-11-24T08:19:26.161+00:00","uptime_ms":82049,"simulated":false,"value":17.5,"valid":true,"unit":"lux"}
 ```
 
 Example result:

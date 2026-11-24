@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
     volumes: ["db-data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U smartdoor -d smartdoor"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U smartdoor -d smartdoor"]
       interval: 3s
       timeout: 3s
       retries: 20
