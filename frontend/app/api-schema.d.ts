@@ -325,6 +325,8 @@ export interface operations {
                 from?: string;
                 to?: string;
                 limit?: number;
+                /** @description Filter to combined snapshot rows. Omit to include legacy per-message rows. */
+                source?: "combined";
             };
             header?: never;
             path?: never;
@@ -340,6 +342,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Reading"][];
                 };
+            };
+            /** @description Invalid source filter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

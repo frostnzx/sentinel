@@ -190,7 +190,7 @@ Expose `pending`, `completed`, `skipped`, and `failed` analysis states. Invalid 
 Build four pages:
 
 - **Overview:** connectivity, door position, reported lock state, presence, nearby readings, latest alert, and lock/unlock buttons.
-- **Sensor history:** temperature, lux, and distance charts with time filters.
+- **Sensor history:** a time-filtered table of combined logs showing door status, motion, vibration, distance, light, and log time.
 - **Access history:** scan results, snapshots, visitor descriptions, and event details.
 - **Trusted faces:** create, upload, inspect enrollment/sync status, and remove.
 

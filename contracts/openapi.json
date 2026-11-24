@@ -55,6 +55,15 @@
               "minimum": 1,
               "maximum": 1000
             }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Filter to combined snapshot rows. Omit to include legacy per-message rows.",
+            "schema": {
+              "type": "string",
+              "enum": ["combined"]
+            }
           }
         ],
         "responses": {
@@ -70,6 +79,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid source filter"
           }
         }
       }

@@ -220,8 +220,12 @@ func (a *App) readings(w http.ResponseWriter, r *http.Request) {
 	if limit < 1 || limit > 1000 {
 		limit = 500
 	}
-	from, to := r.URL.Query().Get("from"), r.URL.Query().Get("to")
-	rows, err := a.db.Query(r.Context(), `SELECT id::text,source,door_open,lock_state,presence,temperature_c,distance_mm,light_lux,recorded_at,received_at,COALESCE(sensor,''),COALESCE(device_id,''),COALESCE(boot_id,''),seq,uptime_ms,simulated,valid,motion,vibration,sensor_error,payload,samples FROM readings WHERE ($1='' OR recorded_at >= $1::timestamptz) AND ($2='' OR recorded_at <= $2::timestamptz) ORDER BY recorded_at DESC LIMIT $3`, from, to, limit)
+	from, to, source := r.URL.Query().Get("from"), r.URL.Query().Get("to"), r.URL.Query().Get("source")
+	if source != "" && source != "combined" {
+		writeError(w, 400, "source must be combined")
+		return
+	}
+	rows, err := a.db.Query(r.Context(), `SELECT id::text,source,door_open,lock_state,presence,temperature_c,distance_mm,light_lux,recorded_at,received_at,COALESCE(sensor,''),COALESCE(device_id,''),COALESCE(boot_id,''),seq,uptime_ms,simulated,valid,motion,vibration,sensor_error,payload,samples FROM readings WHERE ($1='' OR recorded_at >= $1::timestamptz) AND ($2='' OR recorded_at <= $2::timestamptz) AND ($4='' OR source=$4) ORDER BY recorded_at DESC LIMIT $3`, from, to, limit, source)
 	if err != nil {
 		writeError(w, 500, "could not read history")
 		return

@@ -10,11 +10,13 @@ The Go API connects to the public MQTT broker and stores combined five-second se
 
 The API subscribes to `<prefix>/sensor/{motion,door,distance,light,vibration}` plus `door/node/alert`, `door/access/event`, `door/cmd/result`, and `door/faces/status`. It publishes manual commands to `door/cmd/lock` without retention and complete retained face snapshots to `door/faces/sync`. It resubscribes after broker reconnects. [MQTT payload examples](docs/mqtt-topics.md) describe the current sensor contract.
 
-The dashboard displays motion, door, vibration, distance, and light readings. The door uses `raw: 0` for closed and `raw: 1` for open while its reed sensor is uncalibrated; other invalid sensor values show as unknown. Manual lock/unlock requests are stored before publishing and update when the ESP32 sends a result. The API also stores access events and exposes them at `GET /api/v1/devices/door-01/events`. `POST /api/v1/faces/sync` accepts a complete versioned list of embeddings and `GET /api/v1/faces/sync` shows the version acknowledged by the Pi. Enrollment photo processing and its dashboard page are later work.
+The dashboard displays motion, door, vibration, distance, and light readings. Its Readings page shows combined five-second logs with date filters and older-history loading. The door uses `raw: 0` for closed and `raw: 1` for open while its reed sensor is uncalibrated; other invalid sensor values show as unknown. Manual lock/unlock requests are stored before publishing and update when the ESP32 sends a result. The API also stores access events and exposes them at `GET /api/v1/devices/door-01/events`. `POST /api/v1/faces/sync` accepts a complete versioned list of embeddings and `GET /api/v1/faces/sync` shows the version acknowledged by the Pi. Enrollment photo processing and its dashboard page are later work.
 
 ## Local simulation
 
 For fake readings and a simulated command acknowledgment, run `MQTT_URL=tcp://mqtt:1883 docker compose --profile sim up --build`. This starts local Mosquitto and the simulator. Use plain `docker compose up --build` with the public `MQTT_URL` to return to real-device mode.
+
+To publish one development reading for every sensor to the public broker, set `MQTT_TOPIC_PREFIX` in `.env` and run `make publish-dev-sensors`. The target publishes motion detected, door open, vibration detected, 85 mm distance, and 32.5 lux. It creates fresh boot IDs on every run so the API does not discard repeated development messages as duplicates. Override the broker with `MQTT_HOST` and `MQTT_PORT` when needed.
 
 ## Contracts and limitations
 

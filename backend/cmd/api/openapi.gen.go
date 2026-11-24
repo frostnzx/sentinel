@@ -44,9 +44,14 @@ const (
 
 // Defines values for ReadingSource.
 const (
-	Combined ReadingSource = "combined"
-	Gateway  ReadingSource = "gateway"
-	Node     ReadingSource = "node"
+	ReadingSourceCombined ReadingSource = "combined"
+	ReadingSourceGateway  ReadingSource = "gateway"
+	ReadingSourceNode     ReadingSource = "node"
+)
+
+// Defines values for GetDoorReadingsParamsSource.
+const (
+	GetDoorReadingsParamsSourceCombined GetDoorReadingsParamsSource = "combined"
 )
 
 // Command defines model for Command.
@@ -172,7 +177,13 @@ type GetDoorReadingsParams struct {
 	From  *time.Time `form:"from,omitempty" json:"from,omitempty"`
 	To    *time.Time `form:"to,omitempty" json:"to,omitempty"`
 	Limit *int       `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Source Filter to combined snapshot rows. Omit to include legacy per-message rows.
+	Source *GetDoorReadingsParamsSource `form:"source,omitempty" json:"source,omitempty"`
 }
+
+// GetDoorReadingsParamsSource defines parameters for GetDoorReadings.
+type GetDoorReadingsParamsSource string
 
 // CreateDoorCommandJSONRequestBody defines body for CreateDoorCommand for application/json ContentType.
 type CreateDoorCommandJSONRequestBody = CommandRequest
@@ -351,6 +362,14 @@ func (siw *ServerInterfaceWrapper) GetDoorReadings(w http.ResponseWriter, r *htt
 	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
 	if err != nil {
 		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "source", r.URL.Query(), &params.Source)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
 		return
 	}
 
