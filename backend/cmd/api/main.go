@@ -231,11 +231,8 @@ func (a *App) createCommand(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "action must be lock or unlock")
 		return
 	}
-	a.mu.RLock()
-	online := a.nodeOnlineLocked()
-	a.mu.RUnlock()
-	if !online || a.mqtt == nil || !a.mqtt.IsConnected() {
-		writeError(w, 503, "door device is offline")
+	if a.mqtt == nil || !a.mqtt.IsConnected() {
+		writeError(w, 503, "MQTT broker is unavailable")
 		return
 	}
 	id := newUUID()

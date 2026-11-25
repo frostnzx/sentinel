@@ -43,23 +43,26 @@ func (t commandToken) Error() error                   { return t.err }
 
 func TestCreateCommandSendsWithoutDeviceResult(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		online    bool
-		confirmed bool
-		err       error
-		wantCode  int
-		wantCount int
+		name       string
+		readingAge time.Duration
+		connected  bool
+		confirmed  bool
+		err        error
+		wantCode   int
+		wantCount  int
 	}{
-		{"published", true, true, nil, http.StatusAccepted, 1},
-		{"broker timeout", true, false, nil, http.StatusServiceUnavailable, 1},
-		{"broker error", true, true, errors.New("publish failed"), http.StatusServiceUnavailable, 1},
-		{"device offline", false, true, nil, http.StatusServiceUnavailable, 0},
+		{"published with fresh reading", time.Second, true, true, nil, http.StatusAccepted, 1},
+		{"published without readings", 0, true, true, nil, http.StatusAccepted, 1},
+		{"published with stale reading", time.Minute, true, true, nil, http.StatusAccepted, 1},
+		{"broker disconnected", 0, false, true, nil, http.StatusServiceUnavailable, 0},
+		{"broker timeout", 0, true, false, nil, http.StatusServiceUnavailable, 1},
+		{"broker error", 0, true, true, errors.New("publish failed"), http.StatusServiceUnavailable, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			client := &commandMQTT{connected: true, confirmed: tc.confirmed, err: tc.err}
+			client := &commandMQTT{connected: tc.connected, confirmed: tc.confirmed, err: tc.err}
 			app := &App{mqtt: client, prefix: "test-prefix", latest: map[string]StoredReading{}}
-			if tc.online {
-				app.latest["door"] = StoredReading{Source: "node", ReceivedAt: time.Now().UTC()}
+			if tc.readingAge != 0 {
+				app.latest["door"] = StoredReading{Source: "node", ReceivedAt: time.Now().UTC().Add(-tc.readingAge)}
 			}
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/devices/door-01/commands", strings.NewReader(`{"action":"lock"}`))
 			response := httptest.NewRecorder()

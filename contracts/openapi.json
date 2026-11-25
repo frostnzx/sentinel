@@ -114,7 +114,7 @@
             "description": "Invalid command"
           },
           "503": {
-            "description": "Door is offline"
+            "description": "MQTT broker is unavailable or publish failed"
           }
         }
       }

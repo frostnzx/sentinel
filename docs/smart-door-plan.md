@@ -149,7 +149,7 @@ Default retention: 30 days for readings and snapshots; 90 days for events.
 
 Publish each command without storing it. Respond once the MQTT broker confirms publication, without waiting for a device result. The dashboard shows that the command was sent, not that it was executed.
 
-Commands expire after ten seconds. The device rejects expired or previously executed commands. The backend rejects new manual requests while the required device path is offline.
+Commands expire after ten seconds. The device rejects expired or previously executed commands. The backend accepts manual requests regardless of sensor freshness, but requires an MQTT connection to publish them.
 
 Magnetic-contact readings independently report whether the door is open or closed. The manual command response does not verify lock movement.
 

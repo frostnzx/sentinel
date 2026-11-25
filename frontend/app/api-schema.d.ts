@@ -355,7 +355,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Door is offline */
+            /** @description MQTT broker is unavailable or publish failed */
             503: {
                 headers: {
                     [name: string]: unknown;
