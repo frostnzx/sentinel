@@ -13,24 +13,10 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-// Defines values for CommandAction.
-const (
-	CommandActionLock   CommandAction = "lock"
-	CommandActionUnlock CommandAction = "unlock"
-)
-
-// Defines values for CommandStatus.
-const (
-	Failed    CommandStatus = "failed"
-	Pending   CommandStatus = "pending"
-	Succeeded CommandStatus = "succeeded"
-	TimedOut  CommandStatus = "timed_out"
-)
-
 // Defines values for CommandRequestAction.
 const (
-	CommandRequestActionLock   CommandRequestAction = "lock"
-	CommandRequestActionUnlock CommandRequestAction = "unlock"
+	Lock   CommandRequestAction = "lock"
+	Unlock CommandRequestAction = "unlock"
 )
 
 // Defines values for ReadingSensor.
@@ -54,22 +40,6 @@ const (
 	GetDoorReadingsParamsSourceCombined GetDoorReadingsParamsSource = "combined"
 )
 
-// Command defines model for Command.
-type Command struct {
-	Action    CommandAction      `json:"action"`
-	CreatedAt time.Time          `json:"created_at"`
-	ExpiresAt time.Time          `json:"expires_at"`
-	Id        openapi_types.UUID `json:"id"`
-	Message   *string            `json:"message,omitempty"`
-	Status    CommandStatus      `json:"status"`
-}
-
-// CommandAction defines model for Command.Action.
-type CommandAction string
-
-// CommandStatus defines model for Command.Status.
-type CommandStatus string
-
 // CommandRequest defines model for CommandRequest.
 type CommandRequest struct {
 	Action CommandRequestAction `json:"action"`
@@ -77,6 +47,11 @@ type CommandRequest struct {
 
 // CommandRequestAction defines model for CommandRequest.Action.
 type CommandRequestAction string
+
+// CommandSent defines model for CommandSent.
+type CommandSent struct {
+	Message string `json:"message"`
+}
 
 // DoorEvent defines model for DoorEvent.
 type DoorEvent struct {
@@ -194,9 +169,6 @@ type PublishFaceSyncJSONRequestBody = FaceSyncRequest
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 
-	// (GET /commands/{id})
-	GetCommand(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
-
 	// (POST /devices/door-01/commands)
 	CreateDoorCommand(w http.ResponseWriter, r *http.Request)
 
@@ -225,11 +197,6 @@ type ServerInterface interface {
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
-
-// (GET /commands/{id})
-func (_ Unimplemented) GetCommand(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
 
 // (POST /devices/door-01/commands)
 func (_ Unimplemented) CreateDoorCommand(w http.ResponseWriter, r *http.Request) {
@@ -279,31 +246,6 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
-
-// GetCommand operation middleware
-func (siw *ServerInterfaceWrapper) GetCommand(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-
-	// ------------- Path parameter "id" -------------
-	var id openapi_types.UUID
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetCommand(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
 
 // CreateDoorCommand operation middleware
 func (siw *ServerInterfaceWrapper) CreateDoorCommand(w http.ResponseWriter, r *http.Request) {
@@ -567,9 +509,6 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/commands/{id}", wrapper.GetCommand)
-	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/devices/door-01/commands", wrapper.CreateDoorCommand)
 	})

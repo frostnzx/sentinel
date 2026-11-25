@@ -78,7 +78,6 @@ Use `/api/v1` for application endpoints.
 | `GET /devices/door-01/readings` | Time-filtered sensor history |
 | `GET /devices/door-01/events` | Paginated access and security history |
 | `POST /devices/door-01/commands` | Request lock/unlock |
-| `GET /commands/{id}` | Command outcome |
 | `GET /trusted-people` | List people and synchronization status |
 | `POST /trusted-people` | Create a person |
 | `POST /trusted-people/{id}/enrollments` | Upload photos and process enrollment |
@@ -121,12 +120,12 @@ Public: <project-prefix>/door/access/event
 | `door/node/alert` | Edge → cloud | PIR, vibration, and tamper events |
 | `door/gateway/telemetry` | Edge → cloud | ToF distance, lux, LED state, and gateway heartbeat |
 | `door/access/event` | Edge → cloud | Recognition results and evaluation metrics |
-| `door/cmd/result` | Edge → cloud | Manual command acknowledgment |
+| `door/cmd/result` | Edge → broker | Optional execution result; the API does not subscribe |
 | `door/faces/status` | Edge → cloud | Applied face-list version or synchronization error |
 | `door/cmd/lock` | Cloud → edge | Manual lock/unlock request |
 | `door/faces/sync` | Cloud → edge | Retained, complete face-cache snapshot |
 
-The API, Pi, and ESP32 use the same public topic prefix. Pi-generated automatic unlock commands use `door/cmd/lock`; results are reported through `door/cmd/result`.
+The API, Pi, and ESP32 use the same public topic prefix. Pi-generated automatic unlock commands use `door/cmd/lock`; devices may report results through `door/cmd/result` for other consumers.
 
 Configure the public hostname, port, protocol, and project prefix through environment settings. The selected endpoint is still pending from the team; this does not change the architecture.
 
@@ -142,17 +141,17 @@ Use unique MQTT client IDs. Commands and events carry IDs for duplicate handling
 - Missing measurements remain empty; do not substitute zero.
 - Mark each component offline after 30 seconds without activity.
 
-Use TimescaleDB hypertables for continuous readings and ordinary PostgreSQL tables for people, embeddings, events, commands, enrollments, and synchronization state.
+Use TimescaleDB hypertables for continuous readings and ordinary PostgreSQL tables for people, embeddings, events, enrollments, and synchronization state. The existing commands table is preserved but receives no new writes.
 
-Default retention: 30 days for readings and snapshots; 90 days for events and command history.
+Default retention: 30 days for readings and snapshots; 90 days for events.
 
 ### Manual door commands
 
-Store each command before publishing it. Track `pending`, `succeeded`, `failed`, and `timed_out`.
+Publish each command without storing it. Respond once the MQTT broker confirms publication, without waiting for a device result. The dashboard shows that the command was sent, not that it was executed.
 
 Commands expire after ten seconds. The device rejects expired or previously executed commands. The backend rejects new manual requests while the required device path is offline.
 
-A device acknowledgment confirms execution. Magnetic-contact readings independently report whether the door is open or closed. Without lock-position feedback, show “Unlock command executed” rather than physical verification.
+Magnetic-contact readings independently report whether the door is open or closed. The manual command response does not verify lock movement.
 
 ### Enrollment and deletion
 
@@ -205,12 +204,12 @@ Store reported FPS, latency, similarity, spoof score, lighting, and distance for
 | **1. Contracts** | OpenAPI, MQTT examples and topic map, and Python-service request/response examples |
 | **2. Local foundation** | Compose services, database migrations, Go API, Scalar, and health checks |
 | **3. Simulation** | Simulated node/gateway plus mock embedding and triage responses |
-| **4. Backend flows** | Telemetry, history, acknowledged commands, enrollment sync, snapshots, and analysis |
+| **4. Backend flows** | Telemetry, history, command publishing, enrollment sync, snapshots, and analysis |
 | **5. Frontend** | Four connected pages with useful pending, empty, stale, and failure states |
 | **6. Team integration** | Real Python service, Pi MQTT client, ESP32, and hardware acceptance |
 | **7. GCP/IaC** | Reviewed Terraform, deployment configuration, backup/restore, and cloud verification |
 
-The first milestone is a simulated reading visible in the dashboard and a manual command with a simulated acknowledgment.
+The first milestone is a simulated reading visible in the dashboard and a manual command confirmed as published to the broker.
 
 Required checks:
 
@@ -248,4 +247,4 @@ Keep cloud access scoped to the team’s demo network/IPs by default because the
 
 V1 supports one door and excludes live video, daily LLM summaries, natural-language database queries, custom model training, and cloud-driven alarm escalation. Those can be considered after the required demonstration works.
 
-The project is complete when the dashboard, Scalar API, continuous history, acknowledged commands, cloud enrollment with confirmed Pi synchronization, snapshots, visitor descriptions, and public-broker control work together, with a repeatable GCP deployment.
+The project is complete when the dashboard, Scalar API, continuous history, manual command publishing, cloud enrollment with confirmed Pi synchronization, snapshots, visitor descriptions, and public-broker control work together, with a repeatable GCP deployment.

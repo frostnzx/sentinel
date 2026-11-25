@@ -101,11 +101,11 @@
         },
         "responses": {
           "202": {
-            "description": "Command accepted",
+            "description": "Command sent to the MQTT broker",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Command"
+                  "$ref": "#/components/schemas/CommandSent"
                 }
               }
             }
@@ -115,37 +115,6 @@
           },
           "503": {
             "description": "Door is offline"
-          }
-        }
-      }
-    },
-    "/commands/{id}": {
-      "get": {
-        "operationId": "getCommand",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Command status",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Command"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Command not found"
           }
         }
       }
@@ -386,46 +355,14 @@
           }
         }
       },
-      "Command": {
+      "CommandSent": {
         "type": "object",
         "required": [
-          "id",
-          "action",
-          "status",
-          "created_at",
-          "expires_at"
+          "message"
         ],
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "lock",
-              "unlock"
-            ]
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "succeeded",
-              "failed",
-              "timed_out"
-            ]
-          },
           "message": {
             "type": "string"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "expires_at": {
-            "type": "string",
-            "format": "date-time"
           }
         }
       },

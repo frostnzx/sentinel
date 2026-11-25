@@ -16,7 +16,6 @@ type Reading = {
   received_at: string;
 };
 type State = { door_id: string; online: boolean; mqtt_connected: boolean; readings: Reading[] };
-type Command = { id: string; action: string; status: string; message: string; created_at: string; expires_at: string };
 
 const api = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
 const fresh = (reading?: Reading) => !!reading && Date.now() - Date.parse(reading.received_at) < 30_000;
@@ -32,8 +31,9 @@ const metricValue = (reading: Reading | undefined, value: number | null | undefi
 export default function Home() {
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState("");
+  const [commandError, setCommandError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [command, setCommand] = useState<Command | null>(null);
+  const [sentAction, setSentAction] = useState<"lock" | "unlock" | null>(null);
   const refresh = useCallback(async () => {
     try {
       const response = await fetch(`${api}/devices/door-01/state`, { cache: "no-store" });
@@ -49,27 +49,19 @@ export default function Home() {
     const id = setInterval(() => void refresh(), 2000);
     return () => clearInterval(id);
   }, [refresh]);
-  useEffect(() => {
-    if (!command || command.status !== "pending") return;
-    const id = setInterval(async () => {
-      try {
-        const response = await fetch(`${api}/commands/${command.id}`);
-        if (response.ok) setCommand(await response.json());
-      } catch {}
-    }, 500);
-    return () => clearInterval(id);
-  }, [command]);
   const send = async (action: "lock" | "unlock") => {
     setBusy(true);
+    setSentAction(null);
+    setCommandError("");
     try {
       const response = await fetch(`${api}/devices/door-01/commands`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "Command failed");
-      setCommand(body);
+      setSentAction(action);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Command failed");
+      setCommandError(cause instanceof Error ? cause.message : "Command failed");
     } finally {
       setBusy(false);
     }
@@ -84,6 +76,7 @@ export default function Home() {
     <header><div><p className="eyebrow">SMART DOOR · DOOR 01</p><h1>Overview</h1><p className="sub">Live status and manual control</p><Link className="history-link" href="/readings">View readings history →</Link></div>
       <div className="badges"><span className={`badge ${state?.mqtt_connected ? "online" : "offline"}`}><i/>{state?.mqtt_connected ? "MQTT connected" : "MQTT disconnected"}</span><span className={`badge ${state?.online ? "online" : "offline"}`}><i/>{state?.online ? "ESP32 online" : "ESP32 offline"}</span></div></header>
     {error && <div className="notice">{error}</div>}
+    {commandError && <div className="notice">{commandError}</div>}
     <section className="cards">
       <article className="card status"><div className="cardtop"><span className="label">DOOR STATUS</span><span className="icon">⌂</span></div><strong>{doorLabel(door)}</strong><small>{sensorHint(door, "Magnetic contact report")}</small></article>
       <article className="card status"><div className="cardtop"><span className="label">MOTION</span><span className="icon">◉</span></div><strong>{sensorLabel(motion, motion?.motion, "Motion", "Clear")}</strong><small>{sensorHint(motion, "Motion sensor report")}</small></article>
@@ -92,7 +85,7 @@ export default function Home() {
     <section className="lower"><article className="panel"><div className="panelhead"><div><h2>Nearby readings</h2><p>Latest gateway sensor values</p></div><span className="live">● {nearbyLive ? "LIVE" : "STALE"}</span></div>
       <div className="metrics"><Metric label="Distance" value={metricValue(distance, distance?.distance_mm, "mm")}/><Metric label="Light" value={metricValue(light, light?.light_lux, "lux")}/></div>
       <p className="updated">Updated {distance || light ? new Date(Math.max(Date.parse(distance?.received_at || "0"), Date.parse(light?.received_at || "0"))).toLocaleTimeString() : "—"}</p></article>
-      <article className="panel control"><h2>Manual control</h2><p>Commands expire after 10 seconds and require the device to be online.</p><div className="buttons"><button disabled={busy || !state?.online} onClick={() => void send("lock")}>Lock door</button><button className="secondary" disabled={busy || !state?.online} onClick={() => void send("unlock")}>Unlock door</button></div>{command && <div className="command"><b>{command.status.replace("_", " ")}</b><span>{command.message || `${command.action} request sent`}</span></div>}</article></section>
+      <article className="panel control"><h2>Manual control</h2><p>Commands expire after 10 seconds and require the device to be online.</p><div className="buttons"><button disabled={busy || !state?.online} onClick={() => void send("lock")}>Lock door</button><button className="secondary" disabled={busy || !state?.online} onClick={() => void send("unlock")}>Unlock door</button></div>{sentAction && <div className="command"><b>{sentAction === "lock" ? "Lock" : "Unlock"} command sent</b><span>Sent to the MQTT broker</span></div>}</article></section>
     <footer>ESP32 online means the API received a sensor reading within 30 seconds. Automatic commands use the public MQTT broker.</footer>
   </main>;
 }

@@ -11,14 +11,14 @@ The Pi, ESP32, and API use the same unique `{MQTT_TOPIC_PREFIX}/` on `test.mosqu
 | `sensor/light` | Pi → cloud | No | Illuminance in lux |
 | `door/node/alert` | Edge → cloud | No | PIR, vibration, tamper |
 | `door/access/event` | Edge → cloud | No | Recognition outcome and metrics |
-| `door/cmd/result` | Edge → cloud | No | Manual command acknowledgment |
+| `door/cmd/result` | Edge → broker | No | Optional device execution result; the API does not subscribe |
 | `door/faces/status` | Edge → cloud | No | Applied face-list version |
 | `door/cmd/lock` | API/Pi → ESP32 | **No** | Expiring manual or automatic action command |
 | `door/faces/sync` | Cloud → edge | Yes | Complete face-cache snapshot |
 
 Sensor messages carry `device_id`, `boot_id`, `seq`, `simulated`, `valid`, and `value`. The ESP32 sends `uptime_ms` without a wall-clock timestamp, so the API uses receipt time for its sensor timestamp. The Pi sends UTC `ts` as its sensor timestamp; the API also tracks server receipt time. A valid door `value: true` means closed, and `false` means open. While the reed sensor is uncalibrated, the door status uses `raw: 0` for closed and `raw: 1` for open and still exposes the calibration error. Other invalid readings remain unknown. The API ignores duplicate or older sensor sequences and writes one combined readings-history row at each UTC-aligned five-second boundary while any sensor is fresh. Values older than 30 seconds are null; the `samples` object records each included sensor's validity, error, device identity, sequence, and timestamps. The row's `recorded_at` is the interval boundary and `received_at` is the write time. Existing per-message history remains queryable until the 30-day retention policy removes it. Commands include a UUID, action, and UTC expiry. Devices must reject expired or previously executed IDs. Action commands are never retained.
 
-The Pi sends `origin: "auto"` on automatic unlock; the API sends `origin: "manual"` on manual commands. Both use the same result topic. Face sync is a complete retained JSON object with `version`, `model_version`, and `people`; each person has an ID, name, and 2–5 embeddings of 128 numbers. An empty `people` list clears the cache. The Pi acknowledges with `{"version":1,"status":"applied"}` or `{"version":1,"status":"error","error":"reason"}`.
+The Pi sends `origin: "auto"` on automatic unlock; the API sends `origin: "manual"` on manual commands. The API responds to a manual HTTP request once the broker confirms publication; it does not wait for `door/cmd/result` or track command outcomes. Devices may still publish results for other consumers. Face sync is a complete retained JSON object with `version`, `model_version`, and `people`; each person has an ID, name, and 2–5 embeddings of 128 numbers. An empty `people` list clears the cache. The Pi acknowledges with `{"version":1,"status":"applied"}` or `{"version":1,"status":"error","error":"reason"}`.
 
 Example ESP32 motion, invalid door, and vibration readings (in topic order):
 

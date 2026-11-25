@@ -8,7 +8,6 @@ type Reading = components["schemas"]["Reading"];
 type Filters = { from: string; to: string };
 const api = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080/api/v1";
 const pageSize = 100;
-const localInput = (date: Date) => new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 const label = (value: boolean | null | undefined, yes: string, no: string) => value == null ? "—" : value ? yes : no;
 const metric = (value: number | null | undefined, unit: string) => value == null ? "—" : `${value.toFixed(1)} ${unit}`;
 
@@ -60,9 +59,7 @@ export default function ReadingsPage() {
   }, []);
 
   useEffect(() => {
-    const initial = { from: localInput(new Date(Date.now() - 24 * 60 * 60 * 1000)), to: "" };
-    setFrom(initial.from);
-    void load(initial);
+    void load({ from: "", to: "" });
     return () => pending.current?.abort();
   }, [load]);
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 
 	"github.com/eclipse/paho.mqtt.golang"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -44,14 +42,6 @@ type StoredReading struct {
 	LightLux     *float64                        `json:"light_lux"`
 	RecordedAt   time.Time                       `json:"recorded_at"`
 	ReceivedAt   time.Time                       `json:"received_at"`
-}
-type DoorCommand struct {
-	ID        string    `json:"id"`
-	Action    string    `json:"action"`
-	Status    string    `json:"status"`
-	Message   string    `json:"message"`
-	CreatedAt time.Time `json:"created_at"`
-	ExpiresAt time.Time `json:"expires_at"`
 }
 type App struct {
 	db     *pgxpool.Pool
@@ -92,7 +82,6 @@ func main() {
 	r.Get("/api/v1/devices/door-01/state", a.state)
 	r.Get("/api/v1/devices/door-01/readings", a.readings)
 	r.Post("/api/v1/devices/door-01/commands", a.createCommand)
-	r.Get("/api/v1/commands/{id}", a.getCommand)
 	r.Get("/api/v1/devices/door-01/events", a.events)
 	r.Get("/api/v1/faces/sync", a.faceStatus)
 	r.Post("/api/v1/faces/sync", a.syncFaces)
@@ -125,7 +114,7 @@ func (a *App) connectMQTT() {
 	clientID := env("MQTT_CLIENT_ID", "smart-door-api-local")
 	opts := mqtt.NewClientOptions().AddBroker(env("MQTT_URL", "ssl://test.mosquitto.org:8886")).SetClientID(clientID).SetAutoReconnect(true).SetConnectRetry(true).SetConnectRetryInterval(2 * time.Second)
 	opts.SetOnConnectHandler(func(c mqtt.Client) {
-		for _, topic := range []string{"sensor/motion", "sensor/door", "sensor/distance", "sensor/light", "sensor/vibration", "door/node/alert", "door/access/event", "door/cmd/result", "door/faces/status"} {
+		for _, topic := range []string{"sensor/motion", "sensor/door", "sensor/distance", "sensor/light", "sensor/vibration", "door/node/alert", "door/access/event", "door/faces/status"} {
 			if token := c.Subscribe(a.topic(topic), 1, a.handleMQTT); token.Wait() && token.Error() != nil {
 				log.Printf("subscribe %s: %v", topic, token.Error())
 			}
@@ -149,25 +138,6 @@ func (a *App) handleMQTT(_ mqtt.Client, m mqtt.Message) {
 	}
 	if strings.HasSuffix(m.Topic(), "/access/event") || strings.HasSuffix(m.Topic(), "/node/alert") {
 		a.handleEvent(m.Topic(), m.Payload())
-		return
-	}
-	if strings.HasSuffix(m.Topic(), "/cmd/result") {
-		var result struct {
-			ID      string `json:"id"`
-			Status  string `json:"status"`
-			Message string `json:"message"`
-		}
-		if json.Unmarshal(m.Payload(), &result) != nil || result.ID == "" {
-			return
-		}
-		status := result.Status
-		if status != "succeeded" && status != "failed" {
-			status = "failed"
-		}
-		_, err := a.db.Exec(context.Background(), `UPDATE commands SET status=$2,message=$3 WHERE id=$1 AND status='pending'`, result.ID, status, result.Message)
-		if err != nil {
-			log.Printf("store command result: %v", err)
-		}
 		return
 	}
 	if !strings.HasPrefix(m.Topic(), a.topic("sensor/")) {
@@ -268,39 +238,14 @@ func (a *App) createCommand(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 503, "door device is offline")
 		return
 	}
-	now := time.Now().UTC()
 	id := newUUID()
-	c := DoorCommand{ID: id, Action: body.Action, Status: "pending", CreatedAt: now, ExpiresAt: now.Add(10 * time.Second)}
-	_, err := a.db.Exec(r.Context(), `INSERT INTO commands(id,action,status,created_at,expires_at) VALUES($1,$2,'pending',$3,$4)`, id, body.Action, c.CreatedAt, c.ExpiresAt)
-	if err != nil {
-		writeError(w, 500, "could not store command")
-		return
-	}
-	payload, _ := json.Marshal(map[string]any{"id": id, "action": body.Action, "origin": "manual", "expires_at": c.ExpiresAt})
+	payload, _ := json.Marshal(map[string]any{"id": id, "action": body.Action, "origin": "manual", "expires_at": time.Now().UTC().Add(10 * time.Second)})
 	t := a.mqtt.Publish(a.topic("door/cmd/lock"), 1, false, payload)
 	if !t.WaitTimeout(2*time.Second) || t.Error() != nil {
-		_, _ = a.db.Exec(r.Context(), `UPDATE commands SET status='failed',message='publish failed' WHERE id=$1 AND status='pending'`, id)
 		writeError(w, 503, "could not publish command")
 		return
 	}
-	jsonResponse(w, http.StatusAccepted, c)
-}
-func (a *App) getCommand(w http.ResponseWriter, r *http.Request) {
-	var c DoorCommand
-	err := a.db.QueryRow(r.Context(), `SELECT id::text,action,status,message,created_at,expires_at FROM commands WHERE id=$1`, chi.URLParam(r, "id")).Scan(&c.ID, &c.Action, &c.Status, &c.Message, &c.CreatedAt, &c.ExpiresAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		writeError(w, 404, "command not found")
-		return
-	}
-	if err != nil {
-		writeError(w, 500, "could not read command")
-		return
-	}
-	if c.Status == "pending" && time.Now().After(c.ExpiresAt) {
-		_, _ = a.db.Exec(r.Context(), `UPDATE commands SET status='timed_out' WHERE id=$1 AND status='pending'`, c.ID)
-		c.Status = "timed_out"
-	}
-	jsonResponse(w, 200, c)
+	jsonResponse(w, http.StatusAccepted, map[string]string{"message": "Command sent"})
 }
 func jsonResponse(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

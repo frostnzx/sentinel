@@ -52,22 +52,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/commands/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["getCommand"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -246,18 +230,8 @@ export interface components {
             /** @enum {string} */
             action: "lock" | "unlock";
         };
-        Command: {
-            /** Format: uuid */
-            id: string;
-            /** @enum {string} */
-            action: "lock" | "unlock";
-            /** @enum {string} */
-            status: "pending" | "succeeded" | "failed" | "timed_out";
-            message?: string;
-            /** Format: date-time */
-            created_at: string;
-            /** Format: date-time */
-            expires_at: string;
+        CommandSent: {
+            message: string;
         };
         DoorEvent: {
             /** Format: uuid */
@@ -365,13 +339,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Command accepted */
+            /** @description Command sent to the MQTT broker */
             202: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Command"];
+                    "application/json": components["schemas"]["CommandSent"];
                 };
             };
             /** @description Invalid command */
@@ -383,35 +357,6 @@ export interface operations {
             };
             /** @description Door is offline */
             503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getCommand: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Command status */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Command"];
-                };
-            };
-            /** @description Command not found */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
