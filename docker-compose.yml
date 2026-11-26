@@ -33,6 +33,9 @@ services:
       MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:?Set a unique MQTT_TOPIC_PREFIX in .env}
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-smart-door-api}
       API_ADDR: :8080
+      VISITOR_ANALYSIS_MODE: ${VISITOR_ANALYSIS_MODE:-off}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
     ports: ["8080:8080"]
     depends_on:
       db: { condition: service_healthy }

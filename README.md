@@ -21,3 +21,13 @@ To publish one development reading for every sensor to the public broker, set `M
 ## Contracts and limitations
 
 [OpenAPI](contracts/openapi.json) is the shared HTTP contract; run `make generate` after changing it. The public test broker permits others to publish and read raw topics, including lock commands and face embeddings. Its topic prefix avoids accidental collisions but does not control access. Public-broker automatic unlocking stops when the internet or broker is unavailable.
+
+## Visitor photos and analysis
+
+The Pi can upload a JPEG or PNG up to 5 MiB with the same event UUID as the MQTT access event. Both arrival orders are supported and the first photo for an event is kept for 30 days.
+
+```sh
+curl -F 'event_id=EVENT_UUID' -F 'image=@visitor.jpg' http://localhost:8080/api/v1/snapshots
+```
+
+Set `VISITOR_ANALYSIS_MODE=stub` for a labeled simulated result, or `VISITOR_ANALYSIS_MODE=gemini` and `GEMINI_API_KEY` to use Gemini. `GEMINI_MODEL` defaults to `gemini-3.1-flash-lite`. The API analyzes photos attached to `lockout`, `spoof`, or `loiter` events, at most once every 30 seconds. Additional eligible events in that window are skipped. Analysis is off by default. The API key belongs in the server environment, never the frontend. Confirm the event kinds and photo contract with the Pi team before hardware integration.

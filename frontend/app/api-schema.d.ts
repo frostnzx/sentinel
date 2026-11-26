@@ -157,6 +157,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["uploadSnapshot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/snapshots/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -245,6 +277,9 @@ export interface components {
             recorded_at: string;
             /** Format: date-time */
             received_at: string;
+            /** Format: uuid */
+            snapshot_id?: string;
+            analysis?: components["schemas"]["VisitorAnalysis"];
         };
         FacePerson: {
             id: string;
@@ -263,6 +298,22 @@ export interface components {
             model_version?: string;
             people: components["schemas"]["FacePerson"][];
             error?: string;
+        };
+        SnapshotRef: {
+            /** Format: uuid */
+            id: string;
+        };
+        VisitorResult: {
+            /** @enum {string} */
+            category: "person_visible" | "no_person_visible" | "unclear";
+            description: string;
+            people_count: number | null;
+            simulated?: boolean;
+        };
+        VisitorAnalysis: {
+            /** @enum {string} */
+            status: "pending" | "completed" | "skipped" | "failed";
+            result?: components["schemas"]["VisitorResult"] | null;
         };
     };
     responses: never;
@@ -428,6 +479,81 @@ export interface operations {
             };
             /** @description Invalid snapshot */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    uploadSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: uuid */
+                    event_id: string;
+                    /** Format: binary */
+                    image: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Existing photo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotRef"];
+                };
+            };
+            /** @description Photo stored */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotRef"];
+                };
+            };
+            /** @description Invalid upload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Photo */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                };
+            };
+            /** @description Photo unavailable */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -35,6 +35,21 @@ const (
 	ReadingSourceNode     ReadingSource = "node"
 )
 
+// Defines values for VisitorAnalysisStatus.
+const (
+	Completed VisitorAnalysisStatus = "completed"
+	Failed    VisitorAnalysisStatus = "failed"
+	Pending   VisitorAnalysisStatus = "pending"
+	Skipped   VisitorAnalysisStatus = "skipped"
+)
+
+// Defines values for VisitorResultCategory.
+const (
+	NoPersonVisible VisitorResultCategory = "no_person_visible"
+	PersonVisible   VisitorResultCategory = "person_visible"
+	Unclear         VisitorResultCategory = "unclear"
+)
+
 // Defines values for GetDoorReadingsParamsSource.
 const (
 	GetDoorReadingsParamsSourceCombined GetDoorReadingsParamsSource = "combined"
@@ -55,11 +70,13 @@ type CommandSent struct {
 
 // DoorEvent defines model for DoorEvent.
 type DoorEvent struct {
+	Analysis   *VisitorAnalysis       `json:"analysis,omitempty"`
 	Id         openapi_types.UUID     `json:"id"`
 	Kind       string                 `json:"kind"`
 	Payload    map[string]interface{} `json:"payload"`
 	ReceivedAt time.Time              `json:"received_at"`
 	RecordedAt time.Time              `json:"recorded_at"`
+	SnapshotId *openapi_types.UUID    `json:"snapshot_id,omitempty"`
 	Source     string                 `json:"source"`
 }
 
@@ -133,6 +150,11 @@ type ReadingSensor string
 // ReadingSource defines model for Reading.Source.
 type ReadingSource string
 
+// SnapshotRef defines model for SnapshotRef.
+type SnapshotRef struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
 // SnapshotSample defines model for SnapshotSample.
 type SnapshotSample struct {
 	BootId     string             `json:"boot_id"`
@@ -147,6 +169,26 @@ type SnapshotSample struct {
 	Valid      bool               `json:"valid"`
 }
 
+// VisitorAnalysis defines model for VisitorAnalysis.
+type VisitorAnalysis struct {
+	Result *VisitorResult        `json:"result"`
+	Status VisitorAnalysisStatus `json:"status"`
+}
+
+// VisitorAnalysisStatus defines model for VisitorAnalysis.Status.
+type VisitorAnalysisStatus string
+
+// VisitorResult defines model for VisitorResult.
+type VisitorResult struct {
+	Category    VisitorResultCategory `json:"category"`
+	Description string                `json:"description"`
+	PeopleCount *int                  `json:"people_count"`
+	Simulated   *bool                 `json:"simulated,omitempty"`
+}
+
+// VisitorResultCategory defines model for VisitorResult.Category.
+type VisitorResultCategory string
+
 // GetDoorReadingsParams defines parameters for GetDoorReadings.
 type GetDoorReadingsParams struct {
 	From  *time.Time `form:"from,omitempty" json:"from,omitempty"`
@@ -160,11 +202,20 @@ type GetDoorReadingsParams struct {
 // GetDoorReadingsParamsSource defines parameters for GetDoorReadings.
 type GetDoorReadingsParamsSource string
 
+// UploadSnapshotMultipartBody defines parameters for UploadSnapshot.
+type UploadSnapshotMultipartBody struct {
+	EventId openapi_types.UUID `json:"event_id"`
+	Image   openapi_types.File `json:"image"`
+}
+
 // CreateDoorCommandJSONRequestBody defines body for CreateDoorCommand for application/json ContentType.
 type CreateDoorCommandJSONRequestBody = CommandRequest
 
 // PublishFaceSyncJSONRequestBody defines body for PublishFaceSync for application/json ContentType.
 type PublishFaceSyncJSONRequestBody = FaceSyncRequest
+
+// UploadSnapshotMultipartRequestBody defines body for UploadSnapshot for multipart/form-data ContentType.
+type UploadSnapshotMultipartRequestBody UploadSnapshotMultipartBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -192,6 +243,12 @@ type ServerInterface interface {
 
 	// (GET /health/ready)
 	GetHealthReady(w http.ResponseWriter, r *http.Request)
+
+	// (POST /snapshots)
+	UploadSnapshot(w http.ResponseWriter, r *http.Request)
+
+	// (GET /snapshots/{id})
+	GetSnapshot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -235,6 +292,16 @@ func (_ Unimplemented) GetHealthLive(w http.ResponseWriter, r *http.Request) {
 
 // (GET /health/ready)
 func (_ Unimplemented) GetHealthReady(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /snapshots)
+func (_ Unimplemented) UploadSnapshot(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /snapshots/{id})
+func (_ Unimplemented) GetSnapshot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -396,6 +463,45 @@ func (siw *ServerInterfaceWrapper) GetHealthReady(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// UploadSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) UploadSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadSnapshot(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSnapshot operation middleware
+func (siw *ServerInterfaceWrapper) GetSnapshot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSnapshot(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -532,6 +638,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health/ready", wrapper.GetHealthReady)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/snapshots", wrapper.UploadSnapshot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/snapshots/{id}", wrapper.GetSnapshot)
 	})
 
 	return r

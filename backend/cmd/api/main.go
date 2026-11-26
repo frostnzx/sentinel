@@ -70,6 +70,7 @@ func main() {
 		log.Fatal(err)
 	}
 	go a.logSnapshots(ctx)
+	go a.visitorWorker(ctx)
 	a.connectMQTT()
 	r := chi.NewRouter()
 	r.Get("/health/live", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -83,6 +84,8 @@ func main() {
 	r.Get("/api/v1/devices/door-01/readings", a.readings)
 	r.Post("/api/v1/devices/door-01/commands", a.createCommand)
 	r.Get("/api/v1/devices/door-01/events", a.events)
+	r.Post("/api/v1/snapshots", a.uploadVisitorPhoto)
+	r.Get("/api/v1/snapshots/{id}", a.visitorPhoto)
 	r.Get("/api/v1/faces/sync", a.faceStatus)
 	r.Post("/api/v1/faces/sync", a.syncFaces)
 	log.Printf("API listening on %s", env("API_ADDR", ":8080"))

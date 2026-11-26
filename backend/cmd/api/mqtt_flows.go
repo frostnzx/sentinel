@@ -43,7 +43,7 @@ func (a *App) handleEvent(topic string, payload []byte) {
 }
 
 func (a *App) events(w http.ResponseWriter, r *http.Request) {
-	rows, err := a.db.Query(r.Context(), `SELECT id::text,source,kind,payload,recorded_at,received_at FROM events ORDER BY recorded_at DESC LIMIT 100`)
+	rows, err := a.db.Query(r.Context(), `SELECT e.id::text,e.source,e.kind,e.payload,e.recorded_at,e.received_at,p.id::text,p.analysis_status,p.analysis_result FROM events e LEFT JOIN visitor_photos p ON p.event_id=e.id AND p.created_at>now()-interval '30 days' ORDER BY e.recorded_at DESC LIMIT 100`)
 	if err != nil {
 		writeError(w, 500, "could not read events")
 		return
@@ -54,11 +54,26 @@ func (a *App) events(w http.ResponseWriter, r *http.Request) {
 		var id, source, kind string
 		var payload json.RawMessage
 		var recorded, received time.Time
-		if rows.Scan(&id, &source, &kind, &payload, &recorded, &received) != nil {
+		var photoID, status *string
+		var analysis json.RawMessage
+		if rows.Scan(&id, &source, &kind, &payload, &recorded, &received, &photoID, &status, &analysis) != nil {
 			writeError(w, 500, "could not read events")
 			return
 		}
-		result = append(result, map[string]any{"id": id, "source": source, "kind": kind, "payload": payload, "recorded_at": recorded, "received_at": received})
+		entry := map[string]any{"id": id, "source": source, "kind": kind, "payload": payload, "recorded_at": recorded, "received_at": received}
+		if photoID != nil {
+			entry["snapshot_id"] = *photoID
+			if status != nil {
+				state := *status
+				if state == "running" {
+					state = "pending"
+				}
+				entry["analysis"] = map[string]any{"status": state, "result": analysis}
+			} else if source == "gateway" && (kind == "lockout" || kind == "spoof" || kind == "loiter") {
+				entry["analysis"] = map[string]any{"status": "pending"}
+			}
+		}
+		result = append(result, entry)
 	}
 	if rows.Err() != nil {
 		writeError(w, 500, "could not read events")

@@ -62,7 +62,9 @@
             "description": "Filter to combined snapshot rows. Omit to include legacy per-message rows.",
             "schema": {
               "type": "string",
-              "enum": ["combined"]
+              "enum": [
+                "combined"
+              ]
             }
           }
         ],
@@ -204,6 +206,98 @@
           }
         }
       }
+    },
+    "/snapshots": {
+      "post": {
+        "operationId": "uploadSnapshot",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "event_id",
+                  "image"
+                ],
+                "properties": {
+                  "event_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Photo stored",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotRef"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Existing photo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotRef"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload"
+          }
+        }
+      }
+    },
+    "/snapshots/{id}": {
+      "get": {
+        "operationId": "getSnapshot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Photo",
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Photo unavailable"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -231,16 +325,38 @@
           },
           "sensor": {
             "type": "string",
-            "enum": ["motion", "door", "distance", "light", "vibration"],
+            "enum": [
+              "motion",
+              "door",
+              "distance",
+              "light",
+              "vibration"
+            ],
             "description": "Absent on readings stored before sensor topics were adopted."
           },
-          "device_id": { "type": "string" },
-          "boot_id": { "type": "string" },
-          "seq": { "type": "integer", "format": "int64" },
-          "uptime_ms": { "type": "integer", "format": "int64" },
-          "simulated": { "type": "boolean" },
-          "valid": { "type": "boolean" },
-          "error": { "type": "string" },
+          "device_id": {
+            "type": "string"
+          },
+          "boot_id": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
           "payload": {
             "type": "object",
             "additionalProperties": true,
@@ -297,18 +413,52 @@
       },
       "SnapshotSample": {
         "type": "object",
-        "required": ["id", "device_id", "boot_id", "seq", "simulated", "valid", "recorded_at", "received_at"],
+        "required": [
+          "id",
+          "device_id",
+          "boot_id",
+          "seq",
+          "simulated",
+          "valid",
+          "recorded_at",
+          "received_at"
+        ],
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
-          "device_id": { "type": "string" },
-          "boot_id": { "type": "string" },
-          "seq": { "type": "integer", "format": "int64" },
-          "uptime_ms": { "type": "integer", "format": "int64" },
-          "simulated": { "type": "boolean" },
-          "valid": { "type": "boolean" },
-          "error": { "type": "string" },
-          "recorded_at": { "type": "string", "format": "date-time" },
-          "received_at": { "type": "string", "format": "date-time" }
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "device_id": {
+            "type": "string"
+          },
+          "boot_id": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "uptime_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "simulated": {
+            "type": "boolean"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time"
+          }
         }
       },
       "DoorState": {
@@ -398,6 +548,13 @@
           "received_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "analysis": {
+            "$ref": "#/components/schemas/VisitorAnalysis"
           }
         }
       },
@@ -475,6 +632,71 @@
           },
           "error": {
             "type": "string"
+          }
+        }
+      },
+      "SnapshotRef": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "VisitorResult": {
+        "type": "object",
+        "required": [
+          "category",
+          "description",
+          "people_count"
+        ],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "person_visible",
+              "no_person_visible",
+              "unclear"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "people_count": {
+            "type": "integer",
+            "nullable": true
+          },
+          "simulated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "VisitorAnalysis": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "skipped",
+              "failed"
+            ]
+          },
+          "result": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VisitorResult"
+              }
+            ],
+            "nullable": true
           }
         }
       }
