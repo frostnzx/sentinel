@@ -122,7 +122,20 @@ func (a *App) syncFaces(w http.ResponseWriter, r *http.Request) {
 	}
 	people, _ := json.Marshal(input.People)
 	var version int64
-	err := a.db.QueryRow(r.Context(), `INSERT INTO face_sync(singleton,version,model_version,snapshot) VALUES(true,1,$1,$2) ON CONFLICT(singleton) DO UPDATE SET version=face_sync.version+1,model_version=EXCLUDED.model_version,snapshot=EXCLUDED.snapshot,error='',updated_at=now() RETURNING version`, input.ModelVersion, people).Scan(&version)
+	tx, err := a.db.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "could not store face snapshot")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	if _, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(772311)`); err != nil {
+		writeError(w, 500, "could not store face snapshot")
+		return
+	}
+	err = tx.QueryRow(r.Context(), `INSERT INTO face_sync(singleton,version,model_version,snapshot) VALUES(true,1,$1,$2) ON CONFLICT(singleton) DO UPDATE SET version=face_sync.version+1,model_version=EXCLUDED.model_version,snapshot=EXCLUDED.snapshot,error='',updated_at=now() RETURNING version`, input.ModelVersion, people).Scan(&version)
+	if err == nil {
+		err = tx.Commit(r.Context())
+	}
 	if err != nil {
 		writeError(w, 500, "could not store face snapshot")
 		return
@@ -132,6 +145,8 @@ func (a *App) syncFaces(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) publishFaceSnapshot() {
+	a.facePublishMu.Lock()
+	defer a.facePublishMu.Unlock()
 	var snapshot faceSnapshot
 	var people json.RawMessage
 	err := a.db.QueryRow(context.Background(), `SELECT version,model_version,snapshot FROM face_sync WHERE singleton=true`).Scan(&snapshot.Version, &snapshot.ModelVersion, &people)

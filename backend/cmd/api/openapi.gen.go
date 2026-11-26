@@ -19,6 +19,13 @@ const (
 	Unlock CommandRequestAction = "unlock"
 )
 
+// Defines values for EnrollmentStatus.
+const (
+	EnrollmentStatusCompleted EnrollmentStatus = "completed"
+	EnrollmentStatusFailed    EnrollmentStatus = "failed"
+	EnrollmentStatusPending   EnrollmentStatus = "pending"
+)
+
 // Defines values for ReadingSensor.
 const (
 	Distance  ReadingSensor = "distance"
@@ -37,10 +44,10 @@ const (
 
 // Defines values for VisitorAnalysisStatus.
 const (
-	Completed VisitorAnalysisStatus = "completed"
-	Failed    VisitorAnalysisStatus = "failed"
-	Pending   VisitorAnalysisStatus = "pending"
-	Skipped   VisitorAnalysisStatus = "skipped"
+	VisitorAnalysisStatusCompleted VisitorAnalysisStatus = "completed"
+	VisitorAnalysisStatusFailed    VisitorAnalysisStatus = "failed"
+	VisitorAnalysisStatusPending   VisitorAnalysisStatus = "pending"
+	VisitorAnalysisStatusSkipped   VisitorAnalysisStatus = "skipped"
 )
 
 // Defines values for VisitorResultCategory.
@@ -88,6 +95,26 @@ type DoorState struct {
 	MqttConnected bool      `json:"mqtt_connected"`
 	Online        bool      `json:"online"`
 	Readings      []Reading `json:"readings"`
+}
+
+// Enrollment defines model for Enrollment.
+type Enrollment struct {
+	Error   string             `json:"error"`
+	Id      openapi_types.UUID `json:"id"`
+	Results *[]struct {
+		Error    *string `json:"error,omitempty"`
+		Filename *string `json:"filename,omitempty"`
+	} `json:"results"`
+	Status EnrollmentStatus `json:"status"`
+}
+
+// EnrollmentStatus defines model for Enrollment.Status.
+type EnrollmentStatus string
+
+// EnrollmentAccepted defines model for EnrollmentAccepted.
+type EnrollmentAccepted struct {
+	Id     openapi_types.UUID `json:"id"`
+	Status string             `json:"status"`
 }
 
 // FacePerson defines model for FacePerson.
@@ -169,6 +196,17 @@ type SnapshotSample struct {
 	Valid      bool               `json:"valid"`
 }
 
+// TrustedPerson defines model for TrustedPerson.
+type TrustedPerson struct {
+	AppliedVersion *int64             `json:"applied_version"`
+	Deleted        bool               `json:"deleted"`
+	Enrolled       bool               `json:"enrolled"`
+	Id             openapi_types.UUID `json:"id"`
+	Name           string             `json:"name"`
+	SyncError      string             `json:"sync_error"`
+	Version        int64              `json:"version"`
+}
+
 // VisitorAnalysis defines model for VisitorAnalysis.
 type VisitorAnalysis struct {
 	Result *VisitorResult        `json:"result"`
@@ -208,6 +246,16 @@ type UploadSnapshotMultipartBody struct {
 	Image   openapi_types.File `json:"image"`
 }
 
+// CreateTrustedPersonJSONBody defines parameters for CreateTrustedPerson.
+type CreateTrustedPersonJSONBody struct {
+	Name string `json:"name"`
+}
+
+// StartFaceEnrollmentMultipartBody defines parameters for StartFaceEnrollment.
+type StartFaceEnrollmentMultipartBody struct {
+	Images []openapi_types.File `json:"images"`
+}
+
 // CreateDoorCommandJSONRequestBody defines body for CreateDoorCommand for application/json ContentType.
 type CreateDoorCommandJSONRequestBody = CommandRequest
 
@@ -216,6 +264,12 @@ type PublishFaceSyncJSONRequestBody = FaceSyncRequest
 
 // UploadSnapshotMultipartRequestBody defines body for UploadSnapshot for multipart/form-data ContentType.
 type UploadSnapshotMultipartRequestBody UploadSnapshotMultipartBody
+
+// CreateTrustedPersonJSONRequestBody defines body for CreateTrustedPerson for application/json ContentType.
+type CreateTrustedPersonJSONRequestBody CreateTrustedPersonJSONBody
+
+// StartFaceEnrollmentMultipartRequestBody defines body for StartFaceEnrollment for multipart/form-data ContentType.
+type StartFaceEnrollmentMultipartRequestBody StartFaceEnrollmentMultipartBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -231,6 +285,9 @@ type ServerInterface interface {
 
 	// (GET /devices/door-01/state)
 	GetDoorState(w http.ResponseWriter, r *http.Request)
+
+	// (GET /enrollments/{id})
+	GetFaceEnrollment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 
 	// (GET /faces/sync)
 	GetFaceSync(w http.ResponseWriter, r *http.Request)
@@ -249,6 +306,18 @@ type ServerInterface interface {
 
 	// (GET /snapshots/{id})
 	GetSnapshot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (GET /trusted-people)
+	ListTrustedPeople(w http.ResponseWriter, r *http.Request)
+
+	// (POST /trusted-people)
+	CreateTrustedPerson(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /trusted-people/{id})
+	DeleteTrustedPerson(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+
+	// (POST /trusted-people/{id}/enrollments)
+	StartFaceEnrollment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -272,6 +341,11 @@ func (_ Unimplemented) GetDoorReadings(w http.ResponseWriter, r *http.Request, p
 
 // (GET /devices/door-01/state)
 func (_ Unimplemented) GetDoorState(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /enrollments/{id})
+func (_ Unimplemented) GetFaceEnrollment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -302,6 +376,26 @@ func (_ Unimplemented) UploadSnapshot(w http.ResponseWriter, r *http.Request) {
 
 // (GET /snapshots/{id})
 func (_ Unimplemented) GetSnapshot(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /trusted-people)
+func (_ Unimplemented) ListTrustedPeople(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /trusted-people)
+func (_ Unimplemented) CreateTrustedPerson(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /trusted-people/{id})
+func (_ Unimplemented) DeleteTrustedPerson(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /trusted-people/{id}/enrollments)
+func (_ Unimplemented) StartFaceEnrollment(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -407,6 +501,31 @@ func (siw *ServerInterfaceWrapper) GetDoorState(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// GetFaceEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) GetFaceEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFaceEnrollment(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetFaceSync operation middleware
 func (siw *ServerInterfaceWrapper) GetFaceSync(w http.ResponseWriter, r *http.Request) {
 
@@ -493,6 +612,84 @@ func (siw *ServerInterfaceWrapper) GetSnapshot(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetSnapshot(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListTrustedPeople operation middleware
+func (siw *ServerInterfaceWrapper) ListTrustedPeople(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTrustedPeople(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateTrustedPerson operation middleware
+func (siw *ServerInterfaceWrapper) CreateTrustedPerson(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateTrustedPerson(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteTrustedPerson operation middleware
+func (siw *ServerInterfaceWrapper) DeleteTrustedPerson(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteTrustedPerson(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartFaceEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) StartFaceEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartFaceEnrollment(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -628,6 +825,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/devices/door-01/state", wrapper.GetDoorState)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/enrollments/{id}", wrapper.GetFaceEnrollment)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/faces/sync", wrapper.GetFaceSync)
 	})
 	r.Group(func(r chi.Router) {
@@ -644,6 +844,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/snapshots/{id}", wrapper.GetSnapshot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/trusted-people", wrapper.ListTrustedPeople)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/trusted-people", wrapper.CreateTrustedPerson)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/trusted-people/{id}", wrapper.DeleteTrustedPerson)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/trusted-people/{id}/enrollments", wrapper.StartFaceEnrollment)
 	})
 
 	return r

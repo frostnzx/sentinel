@@ -298,6 +298,181 @@
           }
         }
       }
+    },
+    "/trusted-people": {
+      "get": {
+        "operationId": "listTrustedPeople",
+        "responses": {
+          "200": {
+            "description": "Trusted people",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrustedPerson"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTrustedPerson",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/trusted-people/{id}": {
+      "delete": {
+        "operationId": "deleteTrustedPerson",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Removal pending synchronization"
+          },
+          "204": {
+            "description": "Person removed"
+          },
+          "404": {
+            "description": "Person not found"
+          }
+        }
+      }
+    },
+    "/trusted-people/{id}/enrollments": {
+      "post": {
+        "operationId": "startFaceEnrollment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "images"
+                ],
+                "properties": {
+                  "images": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 5,
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Enrollment started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentAccepted"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid upload"
+          }
+        }
+      }
+    },
+    "/enrollments/{id}": {
+      "get": {
+        "operationId": "getFaceEnrollment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Enrollment status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Enrollment"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Enrollment not found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -697,6 +872,102 @@
               }
             ],
             "nullable": true
+          }
+        }
+      },
+      "TrustedPerson": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "enrolled",
+          "deleted",
+          "version",
+          "applied_version",
+          "sync_error"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "enrolled": {
+            "type": "boolean"
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "applied_version": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "sync_error": {
+            "type": "string"
+          }
+        }
+      },
+      "Enrollment": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "error",
+          "results"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "failed"
+            ]
+          },
+          "error": {
+            "type": "string"
+          },
+          "results": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "object",
+              "properties": {
+                "filename": {
+                  "type": "string"
+                },
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "EnrollmentAccepted": {
+        "type": "object",
+        "required": [
+          "id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
           }
         }
       }

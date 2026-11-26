@@ -189,6 +189,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trusted-people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listTrustedPeople"];
+        put?: never;
+        post: operations["createTrustedPerson"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trusted-people/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteTrustedPerson"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trusted-people/{id}/enrollments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["startFaceEnrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/enrollments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFaceEnrollment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -314,6 +378,34 @@ export interface components {
             /** @enum {string} */
             status: "pending" | "completed" | "skipped" | "failed";
             result?: components["schemas"]["VisitorResult"] | null;
+        };
+        TrustedPerson: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            enrolled: boolean;
+            deleted: boolean;
+            /** Format: int64 */
+            version: number;
+            /** Format: int64 */
+            applied_version: number | null;
+            sync_error: string;
+        };
+        Enrollment: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            status: "pending" | "completed" | "failed";
+            error: string;
+            results: {
+                filename?: string;
+                error?: string;
+            }[] | null;
+        };
+        EnrollmentAccepted: {
+            /** Format: uuid */
+            id: string;
+            status: string;
         };
     };
     responses: never;
@@ -553,6 +645,154 @@ export interface operations {
                 };
             };
             /** @description Photo unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    listTrustedPeople: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Trusted people */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrustedPerson"][];
+                };
+            };
+        };
+    };
+    createTrustedPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id?: string;
+                        name?: string;
+                    };
+                };
+            };
+        };
+    };
+    deleteTrustedPerson: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removal pending synchronization */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Person removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Person not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    startFaceEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    images: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Enrollment started */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentAccepted"];
+                };
+            };
+            /** @description Invalid upload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getFaceEnrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Enrollment status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Enrollment"];
+                };
+            };
+            /** @description Enrollment not found */
             404: {
                 headers: {
                     [name: string]: unknown;
