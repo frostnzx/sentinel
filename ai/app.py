@@ -10,6 +10,7 @@ app = FastAPI()
 detector = None
 recognizer = None
 model_lock = threading.Lock()
+DETECTION_RETRY_MAX_SIDES = (960, 480)
 
 
 @app.on_event("startup")
@@ -22,6 +23,33 @@ def load_models():
 @app.get("/health/ready")
 def ready():
     return {"ready": detector is not None and recognizer is not None}
+
+
+def detect_faces(image):
+    height, width = image.shape[:2]
+    longest_side = max(width, height)
+    with model_lock:
+        detector.setInputSize((width, height))
+        _, faces = detector.detect(image)
+        if faces is not None and len(faces) > 0:
+            return faces
+
+    for retry_side in DETECTION_RETRY_MAX_SIDES:
+        if longest_side <= retry_side:
+            continue
+        scale = retry_side / longest_side
+        resized_width = max(1, round(width * scale))
+        resized_height = max(1, round(height * scale))
+        resized = cv2.resize(image, (resized_width, resized_height), interpolation=cv2.INTER_AREA)
+        with model_lock:
+            detector.setInputSize((resized_width, resized_height))
+            _, faces = detector.detect(resized)
+        if faces is not None and len(faces) > 0:
+            # Map the box and landmarks back to the original photo for SFace alignment.
+            faces[:, :14:2] *= width / resized_width
+            faces[:, 1:14:2] *= height / resized_height
+            return faces
+    return None
 
 
 @app.post("/ai/faces/embed")
@@ -42,11 +70,11 @@ async def embed(images: list[UploadFile] = File(...)):
             if image is None:
                 result["error"] = "Unreadable image"
             else:
-                with model_lock:
-                    detector.setInputSize((image.shape[1], image.shape[0]))
-                    _, faces = detector.detect(image)
-                if faces is None or len(faces) != 1:
-                    result["error"] = "Photo must contain exactly one detectable face"
+                faces = detect_faces(image)
+                if faces is None or len(faces) == 0:
+                    result["error"] = "No face detected in photo"
+                elif len(faces) > 1:
+                    result["error"] = "Multiple faces detected. Use a photo with one person."
                 else:
                     try:
                         with model_lock:
