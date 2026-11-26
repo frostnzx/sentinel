@@ -73,7 +73,7 @@ export default function Home() {
   const nearbyLive = (fresh(distance) && distance?.valid !== false) || (fresh(light) && light?.valid !== false);
 
   return <main className="shell">
-    <header><div><p className="eyebrow">SMART DOOR · DOOR 01</p><h1>Overview</h1><p className="sub">Live status and manual control</p><Link className="history-link" href="/readings">View readings history →</Link> <Link className="history-link" href="/events">View access history →</Link></div>
+    <header><div><p className="eyebrow">SMART DOOR · DOOR 01</p><h1>Overview</h1><p className="sub">Live status and manual control</p><Link className="history-link" href="/readings">View readings history →</Link> <Link className="history-link" href="/events">View access history →</Link> <Link className="history-link" href="/trusted-faces">Manage trusted faces →</Link></div>
       <div className="badges"><span className={`badge ${state?.mqtt_connected ? "online" : "offline"}`}><i/>{state?.mqtt_connected ? "MQTT connected" : "MQTT disconnected"}</span><span className={`badge ${state?.online ? "online" : "offline"}`}><i/>{state?.online ? "ESP32 online" : "ESP32 offline"}</span></div></header>
     {error && <div className="notice">{error}</div>}
     {commandError && <div className="notice">{commandError}</div>}
