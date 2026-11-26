@@ -33,12 +33,24 @@ services:
       MQTT_TOPIC_PREFIX: ${MQTT_TOPIC_PREFIX:?Set a unique MQTT_TOPIC_PREFIX in .env}
       MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-smart-door-api}
       API_ADDR: :8080
+      FACE_AI_URL: ${FACE_AI_URL:-http://face-ai:8000}
       VISITOR_ANALYSIS_MODE: ${VISITOR_ANALYSIS_MODE:-off}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
     ports: ["8080:8080"]
     depends_on:
       db: { condition: service_healthy }
+  face-ai:
+    profiles: [enrollment]
+    build:
+      context: .
+      dockerfile: ai/Dockerfile
+    environment:
+      YUNET_MODEL_PATH: /models/face_detection_yunet_2023mar.onnx
+      SFACE_MODEL_PATH: /models/face_recognition_sface_2021dec.onnx
+      FACE_MODEL_VERSION: ${FACE_MODEL_VERSION:-local-sface-2021dec}
+    volumes:
+      - ${FACE_MODELS_DIR:-./models}:/models:ro
   simulator:
     profiles: [sim]
     build:
