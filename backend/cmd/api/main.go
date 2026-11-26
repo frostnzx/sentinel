@@ -44,11 +44,12 @@ type StoredReading struct {
 	ReceivedAt   time.Time                       `json:"received_at"`
 }
 type App struct {
-	db     *pgxpool.Pool
-	mqtt   mqtt.Client
-	prefix string
-	mu     sync.RWMutex
-	latest map[string]StoredReading
+	db            *pgxpool.Pool
+	mqtt          mqtt.Client
+	prefix        string
+	mu            sync.RWMutex
+	facePublishMu sync.Mutex
+	latest        map[string]StoredReading
 }
 
 func main() {
@@ -69,7 +70,11 @@ func main() {
 	if err := a.restoreLatest(ctx); err != nil {
 		log.Fatal(err)
 	}
+	if _, err := a.db.Exec(ctx, `UPDATE face_enrollments SET status='failed',error='Processing interrupted. Please retry.' WHERE status='pending'`); err != nil {
+		log.Fatal(err)
+	}
 	go a.logSnapshots(ctx)
+	go a.visitorWorker(ctx)
 	a.connectMQTT()
 	r := chi.NewRouter()
 	r.Get("/health/live", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
@@ -83,6 +88,13 @@ func main() {
 	r.Get("/api/v1/devices/door-01/readings", a.readings)
 	r.Post("/api/v1/devices/door-01/commands", a.createCommand)
 	r.Get("/api/v1/devices/door-01/events", a.events)
+	r.Post("/api/v1/snapshots", a.uploadVisitorPhoto)
+	r.Get("/api/v1/snapshots/{id}", a.visitorPhoto)
+	r.Get("/api/v1/trusted-people", a.listPeople)
+	r.Post("/api/v1/trusted-people", a.createPerson)
+	r.Delete("/api/v1/trusted-people/{id}", a.deletePerson)
+	r.Post("/api/v1/trusted-people/{id}/enrollments", a.startEnrollment)
+	r.Get("/api/v1/enrollments/{id}", a.enrollmentStatus)
 	r.Get("/api/v1/faces/sync", a.faceStatus)
 	r.Post("/api/v1/faces/sync", a.syncFaces)
 	log.Printf("API listening on %s", env("API_ADDR", ":8080"))
@@ -274,7 +286,7 @@ func cors(next http.Handler) http.Handler {
 		if origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		}
 		if r.Method == http.MethodOptions {

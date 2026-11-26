@@ -61,6 +61,16 @@ func main() {
 	}); !t.Wait() || t.Error() != nil {
 		log.Fatal(t.Error())
 	}
+	if t := client.Subscribe(topic("door/faces/sync"), 1, func(_ mqtt.Client, message mqtt.Message) {
+		var gallery struct {
+			Version int64 `json:"version"`
+		}
+		if json.Unmarshal(message.Payload(), &gallery) == nil && gallery.Version > 0 {
+			publish(client, topic("door/faces/status"), map[string]any{"version": gallery.Version, "status": "applied"})
+		}
+	}); !t.Wait() || t.Error() != nil {
+		log.Fatal(t.Error())
+	}
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	started := time.Now()

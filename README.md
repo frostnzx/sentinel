@@ -21,3 +21,19 @@ To publish one development reading for every sensor to the public broker, set `M
 ## Contracts and limitations
 
 [OpenAPI](contracts/openapi.json) is the shared HTTP contract; run `make generate` after changing it. The public test broker permits others to publish and read raw topics, including lock commands and face embeddings. Its topic prefix avoids accidental collisions but does not control access. Public-broker automatic unlocking stops when the internet or broker is unavailable.
+
+## Visitor photos and analysis
+
+The Pi can upload a JPEG or PNG up to 5 MiB with the same event UUID as the MQTT access event. Both arrival orders are supported and the first photo for an event is kept for 30 days.
+
+```sh
+curl -F 'event_id=EVENT_UUID' -F 'image=@visitor.jpg' http://localhost:8080/api/v1/snapshots
+```
+
+Set `VISITOR_ANALYSIS_MODE=stub` for a labeled simulated result, or `VISITOR_ANALYSIS_MODE=gemini` and `GEMINI_API_KEY` to use Gemini. `GEMINI_MODEL` defaults to `gemini-3.1-flash-lite`. The API analyzes photos attached to `lockout`, `spoof`, or `loiter` events, at most once every 30 seconds. Additional eligible events in that window are skipped. Analysis is off by default. The API key belongs in the server environment, never the frontend. Confirm the event kinds and photo contract with the Pi team before hardware integration.
+
+## Local trusted-face enrollment
+
+Compose mounts the bundled YuNet and SFace files from [`models/`](models/) read-only. Set `FACE_MODELS_DIR` to use a different directory. Run `MQTT_URL=tcp://mqtt:1883 docker compose --profile sim --profile enrollment up --build` using a unique topic prefix. The Trusted Faces page accepts 3–5 JPEG or PNG photos per person. The face service detects one face, aligns it, and returns SFace embeddings. Uploaded enrollment photos are discarded after processing. The simulator acknowledges gallery versions on the local broker.
+
+`FACE_MODEL_VERSION` defaults to `local-sface-2021dec` for the local demo. Coordinate model version, model hashes, and preprocessing with the Pi team before real-device integration. YuNet SHA-256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`. SFace SHA-256 `0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79`. Public MQTT sends complete retained embeddings and is not isolated.
