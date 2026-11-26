@@ -102,7 +102,29 @@ func analyzePhoto(ctx context.Context, data []byte, mime string) (visitorResult,
 	if key == "" {
 		return visitorResult{}, errors.New("Gemini API key is missing")
 	}
-	body := map[string]any{"contents": []any{map[string]any{"parts": []any{map[string]any{"text": "Describe only visible details. Return JSON with category (person_visible, no_person_visible, or unclear), description, and people_count (integer or null)."}, map[string]any{"inline_data": map[string]string{"mime_type": mime, "data": base64.StdEncoding.EncodeToString(data)}}}}}, "generationConfig": map[string]any{"responseMimeType": "application/json"}}
+	body := map[string]any{
+		"contents": []any{map[string]any{
+			"parts": []any{
+				map[string]string{"text": "Describe only visible details. Return JSON with category (person_visible, no_person_visible, or unclear), description, and people_count (integer or null)."},
+				map[string]any{"inline_data": map[string]string{
+					"mime_type": mime,
+					"data":      base64.StdEncoding.EncodeToString(data),
+				}},
+			},
+		}},
+		"generationConfig": map[string]any{
+			"responseMimeType": "application/json",
+			"responseJsonSchema": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"category":     map[string]any{"type": "string", "enum": []string{"person_visible", "no_person_visible", "unclear"}},
+					"description":  map[string]any{"type": "string"},
+					"people_count": map[string]any{"type": []string{"integer", "null"}, "minimum": 0},
+				},
+				"required": []string{"category", "description", "people_count"},
+			},
+		},
+	}
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return visitorResult{}, err
@@ -151,7 +173,7 @@ func (a *App) visitorWorker(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
-		if _, err := a.db.Exec(ctx, `UPDATE visitor_photos SET analysis_status='failed',analysis_result='{"category":"unclear","description":"Analysis interrupted","people_count":null}'::jsonb WHERE analysis_status='running' AND analysis_started_at < now()-interval '15 seconds'`); err != nil {
+		if _, err := a.db.Exec(ctx, `UPDATE visitor_photos SET analysis_status='failed',analysis_result='{"category":"unclear","description":"Analysis interrupted","people_count":null}'::jsonb WHERE analysis_status='running' AND analysis_started_at < now()-interval '45 seconds'`); err != nil {
 			log.Printf("recover analysis: %v", err)
 		}
 		if _, err := a.db.Exec(ctx, `DELETE FROM visitor_photos WHERE created_at <= now()-interval '30 days'`); err != nil {
@@ -209,7 +231,7 @@ func (a *App) processVisitorPhoto(ctx context.Context) {
 	if err = tx.Commit(ctx); err != nil {
 		return
 	}
-	callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	callCtx, cancel := context.WithTimeout(ctx, 35*time.Second)
 	defer cancel()
 	result, err := analyzePhoto(callCtx, data, mime)
 	status := "completed"
